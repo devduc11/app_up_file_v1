@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Upload game</title>
+  <!-- Add Bootstrap CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    .form {
+      margin: 10em;
+    }
+
+    .form input {
+      margin: 1em;
+    }
+
+    body {
+      background-color: cadetblue;
+    }
+  </style>
+  <!-- production version, optimized for size and speed -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"
+    integrity="sha512-csNcFYJniKjJxRWRV1R7fvnXrycHP6qDR21mgz1ZP55xY5d+aHLfo9/FcGDQLfn2IfngbAHd8LdfsagcCqgTcQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="js/utils.js"></script>
+</head>
+
+<body>
+
+  <!--  SINGLE FILE -->
+  <div id="app" class="container">
+    <h3>
+      Hello {{user}}.
+    </h3>
+    <br />
+    <div class="form" v-if="isAdmin">
+      <input type="file" name="file" ref="file" v-on:change="handleFileUpload()" class="form-control" />
+      <br />
+      Tên Game: <input type="text" name="name" v-model="name" class="form-control" />
+      <br />
+      <!-- Type :
+      <select name="type" v-model="type" class="form-control">
+        <option value="cocos-js">Cocos JS</option>
+        <option value="cocos-creator">Cocos creator 2.3</option>
+        <option value="creator-2.4">Cocos creator 2.4</option>
+      </select> -->
+      <br />
+      <input type="button" value="Upload a file" v-on:click="uploadGame" class="btn btn-primary" />
+
+      <!-- Category :
+    <select name="category" v-model="category" class="form-control">
+      <option value="">All</option>
+      <option value="cocos-js">Cocos JS</option>
+      <option value="cocos-creator">Cocos creator 2.3</option>
+      <option value="creator-2.4">Cocos creator 2.4</option>
+    </select> -->
+      <!-- &nbsp;
+    Search :
+    <input type="text" name="key" v-model="key" class="form-control" />-->
+      <br />
+      Tìm Kiếm Game:
+      <br />
+      <select v-model="selected" class="form-control">
+        <option disabled value="">Please select one</option>
+        <option v-for="(item,index) in gamesList" :value="index" :key="item.id">{{item.name}}</option>
+      </select>
+      <button v-if="isCanTest" v-on:click="testGame" class="btn btn-primary">Test Game</button>
+      <!-- <button v-if="isCanTest" v-on:click="hotUpdate" class="btn btn-primary">Hot update</button> -->
+      <!-- <button v-if="isCanLoadRemote" v-on:click="loadRemote" class="btn btn-primary">Load Remote</button> -->
+      <!-- <button v-if="isCanDownload" v-on:click="downloadGameArchive" class="btn btn-primary">Download Game Archive</button> -->
+      <button v-if="isCanDelete" v-on:click="deleteGame" class="btn btn-danger">Delete Game</button>
+      <br />
+    </div>
+    <div v-if="message">
+      Code:
+      {{ message }}
+    </div>
+    <br />
+    <!-- <div v-if="isAdmin">
+      Active Game
+      <br />
+      <select v-model="selectedActive" class="form-control">
+        <option disabled value="">Please select one</option>
+        <option v-for="(item,index) in deactivedList" :value="index" :key="item.id">{{item.name}}</option>
+      </select>
+      <button v-if="isCanActive" v-on:click="activeGame" class="btn btn-success">Active</button>
+    </div> -->
+  </div>
+</body>
+<script src="js/upload.js"></script>
+
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Log in</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+      background-color: cadetblue;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .login-form {
+      background-color: #ffffff;
+      border: 1px solid #ccc;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .login-form label,
+    .login-form input,
+    .login-form button {
+      margin: 10px 0;
+    }
+
+    .login-form textarea {
+      width: 100%;
+      padding: 5px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      resize: vertical;
+    }
+
+    .login-form button {
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+
+    .login-form button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+  <!-- production version, optimized for size and speed -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="js/utils.js"></script>
+</head>
+
+<body>
+  <div id="app">
+    <div class="login-form">
+      <h2>Login</h2>
+      <label for="token">Token:</label>
+      <textarea type="text" id="token" name="token" v-model="token"></textarea>
+      <br />
+      <button v-on:click="login">Login</button>
+    </div>
+  </div>
+</body>
+
+<script>
+  var app = new Vue({
+    el: '#app',
+    data: {
+      token: '',
+    },
+    async created() {
+      this.token = getCookie('token');
+      if (this.token) {
+        // const response = await axios.post('/login', { token: this.token });
+        // console.log('create', response.data);
+        // window.location.replace(`/upload?token=${this.token}`);
+      }
+    },
+    methods: {
+      async login() {
+        if (!this.token) {
+          alert('Please enter token.');
+          return;
+        }
+        const response = await axios.post('/login', { token: this.token });
+        if (response.data.error) {
+          alert('Đăng nhập không thành công: ');
+          // alert('Đăng nhập không thành công: ' + response.data.error);
+        } else {
+          // alert('Đăng nhập thành công');
+          // console.log('login', response.data);
+          console.log('login', response.data);
+          setCookie('token', this.token, 10000);
+          setCookie('name', response.data.name, 10000);
+          setCookie('role', response.data.role, 10000);
+          window.location.replace(`/upload.html`);
+        }
+      },
+    }
+  })
+</script>
+
+</html>
