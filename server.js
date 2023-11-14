@@ -27,8 +27,8 @@ const port = process.env.PORT || 3000;
 // Kết nối với cơ sở dữ liệu MongoDB
 const uri = process.env.MONGODB_URI;
 mongoose.connect(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+    // useNewUrlParser: true,
+    // useUnifiedTopology: true,
 }).then(() => {
     console.log("Mongo connected successfully");
     checkAndDownloadFiles();
