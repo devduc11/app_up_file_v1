@@ -16,6 +16,7 @@ const fs = require('fs');
 const { saveAs } = require('file-saver');
 const { google } = require('googleapis');
 const extract = require('extract-zip');
+const MongoClient = require('mongodb').MongoClient;
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -35,7 +36,6 @@ mongoose.connect(uri, {
 }).catch((error) => {
     console.error("Mongo error:", error);
 });
-
 
 /* phần login */
 // Payload mẫu cho token
@@ -200,6 +200,7 @@ app.get('/games', async (req, res) => {
     try {
         const games = await File.find().exec();
         res.json(games);
+        // console.log("games: ", games)
     } catch (error) {
         console.error(error);
         res.status(500).send('Đã xảy ra lỗi khi truy vấn dữ liệu.');

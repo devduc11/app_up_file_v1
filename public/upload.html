@@ -49,7 +49,7 @@
       </select> -->
       <br />
       <input type="button" value="Upload a file" v-on:click="uploadGame" class="btn btn-primary" />
-
+      <br />
       <!-- Category :
     <select name="category" v-model="category" class="form-control">
       <option value="">All</option>
@@ -57,15 +57,18 @@
       <option value="cocos-creator">Cocos creator 2.3</option>
       <option value="creator-2.4">Cocos creator 2.4</option>
     </select> -->
-      <!-- &nbsp;
-    Search :
-    <input type="text" name="key" v-model="key" class="form-control" />-->
+      &nbsp;
+      Search :
+      <input type="text" v-model="searchQuery" placeholder="Search games" class="form-control">
+      <!-- <input type="text" name="key" v-model="key" class="form-control" placeholder="Search games"> -->
+      <!-- <input type="text" name="key" v-model="key" class="form-control" /> -->
       <br />
       Tìm Kiếm Game:
       <br />
       <select v-model="selected" class="form-control">
         <option disabled value="">Please select one</option>
-        <option v-for="(item,index) in gamesList" :value="index" :key="item.id">{{item.name}}</option>
+        <option v-for="(item, index) in filteredGames" :value="index" :key="item.id">{{ item.name }}</option>
+        <!-- <option v-for="(item,index) in gamesList" :value="index" :key="item.id">{{item.name}}</option> -->
       </select>
       <button v-if="isCanTest" v-on:click="testGame" class="btn btn-primary">Test Game</button>
       <!-- <button v-if="isCanTest" v-on:click="hotUpdate" class="btn btn-primary">Hot update</button> -->

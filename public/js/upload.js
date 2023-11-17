@@ -14,6 +14,7 @@ var app = new Vue({
     file: '',
     user: '',
     role: '',
+    searchQuery: '',
   },
   computed: {
     // a computed getter
@@ -39,6 +40,12 @@ var app = new Vue({
     isCanActive: function () {
       return this.selectedActive !== '' && this.deactivedList[this.selectedActive];
     },
+    filteredGames: function () {
+      var self = this;
+      return this.gamesList.filter(function (item) {
+        return item.name.toLowerCase().indexOf(self.searchQuery.toLowerCase()) !== -1;
+      });
+    }
   },
   watch: {
     category: async function (val) {
@@ -87,7 +94,7 @@ var app = new Vue({
       const newTab = window.open(`/testGame?selected=${selected}&token=${this.token}`, '_blank');
       newTab.focus();
       // Sử dụng window.location.reload() để làm mới trang
-      window.location.reload();
+      // window.location.reload();
     },
     async hotUpdate() {
       if (!this.token) {
