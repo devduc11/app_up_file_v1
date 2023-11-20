@@ -94,7 +94,7 @@ var app = new Vue({
       const newTab = window.open(`/testGame?selected=${selected}&token=${this.token}`, '_blank');
       newTab.focus();
       // Sử dụng window.location.reload() để làm mới trang
-      // window.location.reload();
+      window.location.reload();
     },
     async hotUpdate() {
       if (!this.token) {
