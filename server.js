@@ -88,7 +88,8 @@ app.post('/login', async (req, res) => {
 
 // Xử lý tất cả các yêu cầu GET và gửi trang login.html
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    // res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    res.sendFile(path.join(__dirname, 'public', 'upload.html'));
 });
 
 /* phần upload file*/
