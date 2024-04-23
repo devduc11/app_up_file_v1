@@ -7,7 +7,8 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const mongoose = require('mongoose');
 const File = require('./models/File'); // Đường dẫn đến mô hình tệp
-const upload_GoogleApi = require('./models/upload_GoogleApi');
+const backup_Data_Game = require('./models/Backup_Data'); 
+// const upload_GoogleApi = require('./models/upload_GoogleApi');
 // const { updateNode, updateNpm } = require('./models/update-node-npm');
 const cors = require('cors');
 const axios = require('axios');
@@ -32,7 +33,7 @@ mongoose.connect(uri, {
     // useUnifiedTopology: true,
 }).then(() => {
     console.log("Mongo connected successfully");
-    checkAndDownloadFiles();
+    // checkAndDownloadFiles();
 }).catch((error) => {
     console.error("Mongo error:", error);
 });
@@ -131,7 +132,7 @@ app.post('/public/upload_game', upload.single('file'), async (req, res) => {
         });
 
         if (existingFile) {
-            upload_GoogleApi.deleteFile(existingFile.filename);
+            // upload_GoogleApi.deleteFile(existingFile.filename);
             // Lấy đường dẫn đầy đủ đến tệp cũ và thư mục cũ
             const folderPath = 'public/upload_game/';
             const oldFilePath = path.join(folderPath, existingFile.filename);
@@ -153,7 +154,8 @@ app.post('/public/upload_game', upload.single('file'), async (req, res) => {
             existingFile.filename = req.file.filename;
             existingFile.originalname = req.file.originalname;
             await existingFile.save();
-            upload_GoogleApi.uploadFile(req.file.filename);
+            // upload_GoogleApi.uploadFile(req.file.filename);
+            backup_Data_Game.uploadFile(req.file.filename);
 
             // Giải nén tệp ZIP
             const zipPath = path.join(folderPath, req.file.filename);
@@ -176,7 +178,8 @@ app.post('/public/upload_game', upload.single('file'), async (req, res) => {
             });
             await newFile.save();
 
-            upload_GoogleApi.uploadFile(req.file.filename);
+            // upload_GoogleApi.uploadFile(req.file.filename);
+            backup_Data_Game.uploadFile(req.file.filename);
 
             // Giải nén tệp ZIP
             const zipPath = path.join(folderPath, req.file.filename);
@@ -259,7 +262,7 @@ app.get('/testGame', async (req, res) => {
         // const destinationFolder = 'public/upload_game/';
         // const destinationPath = path.join(destinationFolder, filename);
         // upload_GoogleApi.downloadFile(filename, destinationPath, name);
-        checkAndDownloadFiles();
+        // checkAndDownloadFiles();
         console.error(error);
         res.status(500).send('Đã xảy ra lỗi khi xử lý yêu cầu (Tệp bị lỗi). Vui lòng tải lại trang web');
     }
@@ -278,7 +281,7 @@ app.delete('/games', async (req, res) => {
         // Xóa trò chơi từ cơ sở dữ liệu dựa trên id
         const deletedGame = await File.findOneAndDelete({ _id: id }).exec();
         const { name, type, filename } = deletedGame;
-        upload_GoogleApi.deleteFile(filename);
+        // upload_GoogleApi.deleteFile(filename);
         const folderPath = 'public/upload_game/'; // Thay đổi đường dẫn này thành thư mục chứa tệp tin bạn muốn xóa
         const fileNameToDeleteFileZip = `${filename}`; //  tệp tin nén (zip) bạn muốn xóa
         const fileNameToDeleteFileName = `${name}`; // thư mục bạn muốn xóa
@@ -338,7 +341,7 @@ async function checkAndDownloadFiles() {
             const destinationPathName = path.join(uploadDir, name);
 
             try {
-                await upload_GoogleApi.downloadFile(filename, destinationPath, name);
+                // await upload_GoogleApi.downloadFile(filename, destinationPath, name);
                 console.log(`Tệp ${filename} đã được tải xuống thành công.`);
 
                 // Convert the relative path to an absolute path
@@ -358,7 +361,7 @@ async function checkAndDownloadFiles() {
 }
 
 // Call checkAndDownloadFiles every hour (adjust the interval as needed)
-setInterval(checkAndDownloadFiles, 1000 * 60 * 60); // 1 hour
+// setInterval(checkAndDownloadFiles, 1000 * 60 * 60); // 1 hour
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
