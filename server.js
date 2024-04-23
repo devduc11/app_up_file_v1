@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const mongoose = require('mongoose');
 const File = require('./models/File'); // Đường dẫn đến mô hình tệp
-const backup_Data_Game = require('./models/Backup_Data'); 
+const backup_Data_Game = require('./models/Backup_Data');
 // const upload_GoogleApi = require('./models/upload_GoogleApi');
 // const { updateNode, updateNpm } = require('./models/update-node-npm');
 const cors = require('cors');
@@ -33,7 +33,7 @@ mongoose.connect(uri, {
     // useUnifiedTopology: true,
 }).then(() => {
     console.log("Mongo connected successfully");
-    // checkAndDownloadFiles();
+    checkAndDownloadFiles();
 }).catch((error) => {
     console.error("Mongo error:", error);
 });
@@ -133,6 +133,7 @@ app.post('/public/upload_game', upload.single('file'), async (req, res) => {
 
         if (existingFile) {
             // upload_GoogleApi.deleteFile(existingFile.filename);
+            backup_Data_Game.deleteFile(existingFile.filename);
             // Lấy đường dẫn đầy đủ đến tệp cũ và thư mục cũ
             const folderPath = 'public/upload_game/';
             const oldFilePath = path.join(folderPath, existingFile.filename);
@@ -262,7 +263,7 @@ app.get('/testGame', async (req, res) => {
         // const destinationFolder = 'public/upload_game/';
         // const destinationPath = path.join(destinationFolder, filename);
         // upload_GoogleApi.downloadFile(filename, destinationPath, name);
-        // checkAndDownloadFiles();
+        checkAndDownloadFiles();
         console.error(error);
         res.status(500).send('Đã xảy ra lỗi khi xử lý yêu cầu (Tệp bị lỗi). Vui lòng tải lại trang web');
     }
@@ -282,6 +283,7 @@ app.delete('/games', async (req, res) => {
         const deletedGame = await File.findOneAndDelete({ _id: id }).exec();
         const { name, type, filename } = deletedGame;
         // upload_GoogleApi.deleteFile(filename);
+        backup_Data_Game.deleteFile(filename);
         const folderPath = 'public/upload_game/'; // Thay đổi đường dẫn này thành thư mục chứa tệp tin bạn muốn xóa
         const fileNameToDeleteFileZip = `${filename}`; //  tệp tin nén (zip) bạn muốn xóa
         const fileNameToDeleteFileName = `${name}`; // thư mục bạn muốn xóa
@@ -342,6 +344,7 @@ async function checkAndDownloadFiles() {
 
             try {
                 // await upload_GoogleApi.downloadFile(filename, destinationPath, name);
+                await backup_Data_Game.downloadFile(filename, destinationPath);
                 console.log(`Tệp ${filename} đã được tải xuống thành công.`);
 
                 // Convert the relative path to an absolute path
@@ -351,7 +354,7 @@ async function checkAndDownloadFiles() {
                 await extract(destinationPath, { dir: absoluteDestinationPathName });
                 console.log(`Tệp ${filename} đã được giải nén thành công.`);
             } catch (downloadError) {
-                console.error(`Lỗi tải tập tin xuống ${filename}:`, downloadError);
+                // console.error(`Lỗi tải tập tin xuống ${filename}:`, downloadError);
             }
         }
         console.log('Tất cả các tập tin được tải xuống và giải nén thành công.');
@@ -361,7 +364,7 @@ async function checkAndDownloadFiles() {
 }
 
 // Call checkAndDownloadFiles every hour (adjust the interval as needed)
-// setInterval(checkAndDownloadFiles, 1000 * 60 * 60); // 1 hour
+setInterval(checkAndDownloadFiles, 1000 * 60 * 60); // 1 hour
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
