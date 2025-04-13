@@ -24,7 +24,7 @@ const fs = require('fs');
 const admin = require('firebase-admin');
 
 // Khởi tạo Firebase Admin với tệp sao lưu cấu hình của Firebase
-const serviceAccount = require('./models/server-game-app-up-file-firebase-adminsdk-5pkvx-8c9d6dc959.json');
+const serviceAccount = require('./models/server-game-app-up-file-firebase.json');
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     storageBucket: 'gs://server-game-app-up-file.appspot.com'// server-game-app-up-file-firebase-adminsdk-5pkvx-8c9d6dc959.json

@@ -364,7 +364,7 @@ async function checkAndDownloadFiles() {
 }
 
 // Call checkAndDownloadFiles every hour (adjust the interval as needed)
-setInterval(checkAndDownloadFiles, 1000 * 60 * 60); // 1 hour
+// setInterval(checkAndDownloadFiles, 1000 * 60 * 60); // 1 hour
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
