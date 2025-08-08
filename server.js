@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const mongoose = require('mongoose');
 const File = require('./models/File'); // Đường dẫn đến mô hình tệp
-const backup_Data_Game = require('./models/Backup_Data');
+// const backup_Data_Game = require('./models/Backup_Data');
 // const upload_GoogleApi = require('./models/upload_GoogleApi');
 // const { updateNode, updateNpm } = require('./models/update-node-npm');
 const cors = require('cors');
@@ -133,7 +133,7 @@ app.post('/public/upload_game', upload.single('file'), async (req, res) => {
 
         if (existingFile) {
             // upload_GoogleApi.deleteFile(existingFile.filename);
-            backup_Data_Game.deleteFile(existingFile.filename);
+            // backup_Data_Game.deleteFile(existingFile.filename);
             // Lấy đường dẫn đầy đủ đến tệp cũ và thư mục cũ
             const folderPath = 'public/upload_game/';
             const oldFilePath = path.join(folderPath, existingFile.filename);
@@ -156,7 +156,7 @@ app.post('/public/upload_game', upload.single('file'), async (req, res) => {
             existingFile.originalname = req.file.originalname;
             await existingFile.save();
             // upload_GoogleApi.uploadFile(req.file.filename);
-            backup_Data_Game.uploadFile(req.file.filename);
+            // backup_Data_Game.uploadFile(req.file.filename);
 
             // Giải nén tệp ZIP
             const zipPath = path.join(folderPath, req.file.filename);
@@ -180,7 +180,7 @@ app.post('/public/upload_game', upload.single('file'), async (req, res) => {
             await newFile.save();
 
             // upload_GoogleApi.uploadFile(req.file.filename);
-            backup_Data_Game.uploadFile(req.file.filename);
+            // backup_Data_Game.uploadFile(req.file.filename);
 
             // Giải nén tệp ZIP
             const zipPath = path.join(folderPath, req.file.filename);
@@ -283,7 +283,7 @@ app.delete('/games', async (req, res) => {
         const deletedGame = await File.findOneAndDelete({ _id: id }).exec();
         const { name, type, filename } = deletedGame;
         // upload_GoogleApi.deleteFile(filename);
-        backup_Data_Game.deleteFile(filename);
+        // backup_Data_Game.deleteFile(filename);
         const folderPath = 'public/upload_game/'; // Thay đổi đường dẫn này thành thư mục chứa tệp tin bạn muốn xóa
         const fileNameToDeleteFileZip = `${filename}`; //  tệp tin nén (zip) bạn muốn xóa
         const fileNameToDeleteFileName = `${name}`; // thư mục bạn muốn xóa
@@ -344,7 +344,7 @@ async function checkAndDownloadFiles() {
 
             try {
                 // await upload_GoogleApi.downloadFile(filename, destinationPath, name);
-                await backup_Data_Game.downloadFile(filename, destinationPath);
+                // await backup_Data_Game.downloadFile(filename, destinationPath);
                 console.log(`Tệp ${filename} đã được tải xuống thành công.`);
 
                 // Convert the relative path to an absolute path
