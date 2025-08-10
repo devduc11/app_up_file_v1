@@ -8,12 +8,20 @@ const mongoose = require('mongoose');
 const File = require('./models/File');
 const backup_Data_Game = require('./models/Backup_Data');
 const cors = require('cors');
-const AdmZip = require('adm-zip');
 const fs = require('fs');
 const extract = require('extract-zip');
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Tạo folder upload_game nếu chưa tồn tại
+const uploadDir = path.join(__dirname, 'upload_game');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
+
+// Middleware serve folder upload_game cho client truy cập file
+app.use('/upload_game', express.static(uploadDir));
 
 // ====================== KẾT NỐI MONGODB ======================
 mongoose.connect(process.env.MONGODB_URI)
@@ -36,7 +44,7 @@ const fixedTokenAdmin = "123456"; // admin
 
 // ====================== UPLOAD CONFIG ======================
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'upload_game/'),
+    destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage });
@@ -65,15 +73,20 @@ app.post('/upload_game', upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).send('Không có tệp nào được tải lên.');
 
     try {
-        const existingFile = await File.findOne({ name: req.body.name, type: req.body.type });
-        const zipPath = path.join('upload_game', req.file.filename);
-        const extractToPath = path.join('upload_game', req.body.name);
+        const { name, type } = req.body;
+        const existingFile = await File.findOne({ name, type });
+        const zipPath = path.join(uploadDir, req.file.filename);
+        const extractToPath = path.join(uploadDir, name);
 
         if (existingFile) {
             // Xóa bản cũ trên cloud & local
             await backup_Data_Game.deleteFile(existingFile.filename);
-            fs.existsSync(path.join('upload_game', existingFile.filename)) && fs.unlinkSync(path.join('upload_game', existingFile.filename));
-            fs.existsSync(path.join('upload_game', existingFile.name)) && fs.rmSync(path.join('upload_game', existingFile.name), { recursive: true });
+            if (fs.existsSync(path.join(uploadDir, existingFile.filename))) {
+                fs.unlinkSync(path.join(uploadDir, existingFile.filename));
+            }
+            if (fs.existsSync(path.join(uploadDir, existingFile.name))) {
+                fs.rmSync(path.join(uploadDir, existingFile.name), { recursive: true, force: true });
+            }
 
             // Cập nhật DB
             existingFile.filename = req.file.filename;
@@ -84,19 +97,21 @@ app.post('/upload_game', upload.single('file'), async (req, res) => {
             const newFile = new File({
                 filename: req.file.filename,
                 originalname: req.file.originalname,
-                type: req.body.type,
-                name: req.body.name
+                type,
+                name
             });
             await newFile.save();
         }
 
         // Upload cloud & giải nén local
         await backup_Data_Game.uploadFile(req.file.filename, true);
-        new AdmZip(zipPath).extractAllTo(extractToPath, true);
+
+        // Giải nén file zip (dùng extract-zip async)
+        await extract(zipPath, { dir: path.resolve(extractToPath) });
 
         res.json({ message: 'Upload thành công', filename: req.file.filename });
     } catch (error) {
-        console.error(error);
+        console.error('Lỗi upload:', error);
         res.status(500).send('Lỗi xử lý file.');
     }
 });
@@ -116,7 +131,7 @@ app.get('/games', async (req, res) => {
 app.get('/updateListActive', async (req, res) => {
     const { category, key } = req.query;
     try {
-        const filter = { type: category, key: key, active: true };
+        const filter = { type: category, key, active: true };
         const games = await File.find(filter).exec();
         res.json(games);
     } catch (error) {
@@ -133,14 +148,16 @@ app.get('/testGame', async (req, res) => {
         if (!game) return res.status(404).send('Không tìm thấy trò chơi.');
 
         const { name, filename } = game;
-        const zipPath = `upload_game/${filename}`;
-        const extractToPath = `upload_game/${name}`;
+        const zipPath = path.join(uploadDir, filename);
+        const extractToPath = path.join(uploadDir, name);
 
-        new AdmZip(zipPath).extractAllTo(extractToPath, true);
+        // Giải nén file trước khi redirect
+        await extract(zipPath, { dir: path.resolve(extractToPath) });
+
         res.redirect(`/upload_game/${name}/`);
     } catch (error) {
-        console.error(error);
-        checkAndDownloadFiles();
+        console.error('Lỗi test game:', error);
+        await checkAndDownloadFiles();
         res.status(500).send('Lỗi khi xử lý test game.');
     }
 });
@@ -160,12 +177,12 @@ app.delete('/games', async (req, res) => {
 
         // Xóa trên cloud & local
         await backup_Data_Game.deleteFile(filename);
-        fs.existsSync(`upload_game/${filename}`) && fs.unlinkSync(`upload_game/${filename}`);
-        fs.existsSync(`upload_game/${name}`) && fs.rmSync(`upload_game/${name}`, { recursive: true });
+        if (fs.existsSync(path.join(uploadDir, filename))) fs.unlinkSync(path.join(uploadDir, filename));
+        if (fs.existsSync(path.join(uploadDir, name))) fs.rmSync(path.join(uploadDir, name), { recursive: true, force: true });
 
         res.json({ message: 'Xóa thành công', deletedGame });
     } catch (error) {
-        console.error(error);
+        console.error('Lỗi xóa game:', error);
         res.status(500).send('Lỗi khi xóa trò chơi.');
     }
 });
@@ -173,7 +190,6 @@ app.delete('/games', async (req, res) => {
 // ====================== HÀM CHECK & DOWNLOAD CLOUD FILE ======================
 async function checkAndDownloadFiles() {
     console.log('Đang tải file từ cloud...');
-    const uploadDir = 'upload_game/';
     try {
         const filesToDownload = await File.find({ filename: { $exists: true, $ne: null } });
         for (const file of filesToDownload) {
