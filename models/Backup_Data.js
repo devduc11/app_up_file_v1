@@ -1,12 +1,23 @@
 const path = require('path');
 const admin = require('firebase-admin');
+require('dotenv').config(); // Load biến môi trường từ .env
 
-// Đảm bảo chỉ init 1 lần
+// Chỉ init Firebase Admin 1 lần
 if (!admin.apps.length) {
-    const serviceAccount = require('./models/server-game-app-up-file-firebase.json');
     admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        storageBucket: `${serviceAccount.project_id}.appspot.com`
+        credential: admin.credential.cert({
+            type: process.env.FIREBASE_TYPE,
+            project_id: process.env.FIREBASE_PROJECT_ID,
+            private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+            private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'), // Fix xuống dòng
+            client_email: process.env.FIREBASE_CLIENT_EMAIL,
+            client_id: process.env.FIREBASE_CLIENT_ID,
+            auth_uri: process.env.FIREBASE_AUTH_URI,
+            token_uri: process.env.FIREBASE_TOKEN_URI,
+            auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+            client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL
+        }),
+        storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`
     });
 }
 
