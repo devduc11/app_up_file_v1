@@ -12,7 +12,7 @@ const fs = require('fs');
 const extract = require('extract-zip');
 
 const app = express();
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 3000;
 
 // Tạo folder upload_game nếu chưa tồn tại
 const uploadDir = path.join(__dirname, 'upload_game');
