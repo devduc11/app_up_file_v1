@@ -167,7 +167,8 @@ var app = new Vue({
 
       const request_config = {
         method: "post",
-        url: "public/upload_game",
+        // url: "public/upload_game",
+        url: "/upload_game",
         data: form_data,
       };
 
