@@ -3,26 +3,339 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Upload game</title>
+  <title>Upload Game Manager</title>
   <!-- Add Bootstrap CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    .form {
-      margin: 10em;
+    :root {
+      --primary-color: #4f46e5;
+      --primary-hover: #4338ca;
+      --secondary-color: #6366f1;
+      --success-color: #10b981;
+      --danger-color: #ef4444;
+      --warning-color: #f59e0b;
+      --background-primary: #0f172a;
+      --background-secondary: #1e293b;
+      --background-card: #334155;
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --border-color: #475569;
+      --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
 
-    .form input {
-      margin: 1em;
+    * {
+      box-sizing: border-box;
     }
 
     body {
-      background-color: cadetblue;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, var(--background-primary) 0%, var(--background-secondary) 100%);
+      min-height: 100vh;
+      color: var(--text-primary);
+      margin: 0;
+      padding: 0;
+    }
+
+    .main-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+      padding: 2rem 0;
+    }
+
+    .header h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    .welcome-text {
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .card {
+      background: var(--background-card);
+      border-radius: 1rem;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border-color);
+      padding: 2rem;
+      margin-bottom: 2rem;
+      transition: all 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 32px 64px -12px rgba(0, 0, 0, 0.35);
+    }
+
+    .upload-section {
+      margin-bottom: 3rem;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 24px;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      border-radius: 2px;
+    }
+
+    .form-control {
+      background: var(--background-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      color: var(--text-primary);
+      padding: 0.875rem 1rem;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-control:focus {
+      background: var(--background-secondary);
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+      color: var(--text-primary);
+    }
+
+    .form-control::placeholder {
+      color: var(--text-secondary);
+    }
+
+    .form-label {
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .btn {
+      border-radius: 0.75rem;
+      font-weight: 500;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--primary-hover), var(--primary-color));
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+      color: white;
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--success-color), #059669);
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+      color: white;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, var(--danger-color), #dc2626);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+      color: white;
+    }
+
+    .file-upload-wrapper {
+      position: relative;
+      margin-bottom: 1.25rem;
+    }
+
+    .file-upload-input {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .file-upload-label {
+      display: block;
+      padding: 2rem;
+      border: 2px dashed var(--border-color);
+      border-radius: 0.75rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: var(--background-secondary);
+    }
+
+    .file-upload-label:hover {
+      border-color: var(--primary-color);
+      background: rgba(79, 70, 229, 0.05);
+    }
+
+    .file-upload-text {
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+
+    .file-upload-text strong {
+      color: var(--primary-color);
+    }
+
+    .search-section {
+      margin-bottom: 2rem;
+    }
+
+    .game-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .code-display {
+      background: var(--background-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--success-color);
+      margin-top: 1.5rem;
+    }
+
+    .loading-spinner {
+      display: none;
+      /* Ẩn mặc định */
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.8);
+      /* mờ nền */
+      z-index: 9999;
+
+      display: flex;
+      /* căn giữa */
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    /* Khi muốn hiện spinner */
+    .loading-spinner {
+      display: none;
+      /* Ẩn mặc định */
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.8);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    .loading-spinner.active {
+      display: flex;
+      /* Chỉ hiện khi có class active */
+    }
+
+    .loading-text {
+      margin-top: 10px;
+      color: white;
+      font-size: 1.1rem;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .main-container {
+        padding: 1rem;
+      }
+
+      .header h1 {
+        font-size: 2rem;
+      }
+
+      .card {
+        padding: 1.5rem;
+      }
+
+      .game-actions {
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--background-secondary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--primary-color);
     }
   </style>
   <!-- production version, optimized for size and speed -->
-  <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2"></script> -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.14/vue.min.js"></script>
-  <!-- <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script> -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.24.0/axios.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"
     integrity="sha512-csNcFYJniKjJxRWRV1R7fvnXrycHP6qDR21mgz1ZP55xY5d+aHLfo9/FcGDQLfn2IfngbAHd8LdfsagcCqgTcQ=="
@@ -31,70 +344,110 @@
 </head>
 
 <body>
+  <div class="main-container">
+    <div id="app">
+      <!-- Header Section -->
+      <div class="header">
+        <h1>🎮 Game Upload Manager</h1>
+        <div class="welcome-text" v-if="user">
+          Xin chào, <strong>{{user}}</strong>!
+        </div>
+      </div>
 
-  <!--  SINGLE FILE -->
-  <div id="app" class="container">
-    <h3>
-      Hello {{user}}.
-    </h3>
-    <br />
-    <div class="form" v-if="isAdmin">
-      <input type="file" name="file" ref="file" v-on:change="handleFileUpload()" class="form-control" />
-      <br />
-      Tên Game: <input type="text" name="name" v-model="name" class="form-control" />
-      <br />
-      <!-- Type :
-      <select name="type" v-model="type" class="form-control">
-        <option value="cocos-js">Cocos JS</option>
-        <option value="cocos-creator">Cocos creator 2.3</option>
-        <option value="creator-2.4">Cocos creator 2.4</option>
-      </select> -->
-      <br />
-      <input type="button" value="Upload a file" v-on:click="uploadGame" class="btn btn-primary" />
-      <br />
-      <!-- Category :
-    <select name="category" v-model="category" class="form-control">
-      <option value="">All</option>
-      <option value="cocos-js">Cocos JS</option>
-      <option value="cocos-creator">Cocos creator 2.3</option>
-      <option value="creator-2.4">Cocos creator 2.4</option>
-    </select> -->
-      &nbsp;
-      Search :
-      <input type="text" v-model="searchQuery" placeholder="Search games" class="form-control">
-      <!-- <input type="text" name="key" v-model="key" class="form-control" placeholder="Search games"> -->
-      <!-- <input type="text" name="key" v-model="key" class="form-control" /> -->
-      <br />
-      Tìm Kiếm Game:
-      <br />
-      <select v-model="selected" class="form-control">
-        <option disabled value="">Please select one</option>
-        <option v-for="(item, index) in filteredGames" :value="index" :key="item.id">{{ item.name }}</option>
-        <!-- <option v-for="(item,index) in gamesList" :value="index" :key="item.id">{{item.name}}</option> -->
-      </select>
-      <button v-if="isCanTest" v-on:click="testGame" class="btn btn-primary">Test Game</button>
-      <!-- <button v-if="isCanTest" v-on:click="hotUpdate" class="btn btn-primary">Hot update</button> -->
-      <!-- <button v-if="isCanLoadRemote" v-on:click="loadRemote" class="btn btn-primary">Load Remote</button> -->
-      <!-- <button v-if="isCanDownload" v-on:click="downloadGameArchive" class="btn btn-primary">Download Game Archive</button> -->
-      <button v-if="isCanDelete" v-on:click="deleteGame" class="btn btn-danger">Delete Game</button>
-      <br />
+      <!-- Upload Section -->
+      <div v-if="isAdmin">
+        <div class="card upload-section">
+          <h2 class="section-title">📤 Upload Game Mới</h2>
+
+          <div class="file-upload-wrapper">
+            <input type="file" name="file" ref="file" @change="handleFileUpload" class="file-upload-input" />
+            <label class="file-upload-label">
+              <div class="file-upload-text">
+                <template v-if="fileName">
+                  <strong>{{ fileName }}</strong>
+                </template>
+                <template v-else>
+                  <strong>Kéo thả file vào đây</strong> hoặc <strong>click để chọn file</strong>
+                  <br><small>Hỗ trợ các định dạng file game</small>
+                </template>
+              </div>
+            </label>
+          </div>
+
+          <!-- <div class="file-upload-wrapper">
+            <input type="file" name="file" ref="file" v-on:change="handleFileUpload()" class="file-upload-input" />
+            <label class="file-upload-label">
+              <div class="file-upload-text">
+                <strong>Kéo thả file vào đây</strong> hoặc <strong>click để chọn file</strong>
+                <br><small>Hỗ trợ các định dạng file game</small>
+              </div>
+            </label>
+          </div> -->
+
+          <div class="mb-3">
+            <label class="form-label">Tên Game</label>
+            <input type="text" name="name" v-model="name" class="form-control" placeholder="Nhập tên game..." />
+          </div>
+
+          <button type="button" v-on:click="uploadGame" class="btn btn-primary">
+            📤 Upload Game
+          </button>
+        </div>
+
+        <!-- Search and Game Management Section -->
+        <div class="card search-section">
+          <h2 class="section-title">🔍 Quản Lý Game</h2>
+
+          <div class="mb-3">
+            <label class="form-label">Tìm kiếm Game</label>
+            <input type="text" v-model="searchQuery" placeholder="Gõ tên game để tìm kiếm..." class="form-control">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Chọn Game</label>
+            <select v-model="selected" class="form-control">
+              <option disabled value="">Chọn một game...</option>
+              <option v-for="(item, index) in filteredGames" :value="index" :key="item.id">{{ item.name }}</option>
+            </select>
+          </div>
+
+          <div class="game-actions" v-if="selected !== ''">
+            <button v-if="isCanTest" v-on:click="testGame" class="btn btn-primary">
+              🎯 Test Game
+            </button>
+            <button v-if="isCanDelete" v-on:click="deleteGame" class="btn btn-danger">
+              🗑️ Xóa Game
+            </button>
+          </div>
+        </div>
+
+        <!-- Response Message -->
+        <div v-if="message" class="card">
+          <h2 class="section-title">📋 Kết Quả</h2>
+          <div class="code-display">
+            {{ message }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Access Denied Message -->
+      <div v-if="!isAdmin" class="card text-center">
+        <h2 class="section-title">🚫 Truy Cập Bị Từ Chối</h2>
+        <p class="text-secondary">Bạn không có quyền truy cập vào trang này.</p>
+      </div>
     </div>
-    <div v-if="message">
-      Code:
-      {{ message }}
+
+    <!-- Loading Spinner -->
+    <div id="loading" class="loading-spinner">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Đang tải...</span>
+      </div>
+      <p class="loading-text">Đang xử lý, vui lòng chờ...</p>
     </div>
-    <br />
-    <!-- <div v-if="isAdmin">
-      Active Game
-      <br />
-      <select v-model="selectedActive" class="form-control">
-        <option disabled value="">Please select one</option>
-        <option v-for="(item,index) in deactivedList" :value="index" :key="item.id">{{item.name}}</option>
-      </select>
-      <button v-if="isCanActive" v-on:click="activeGame" class="btn btn-success">Active</button>
-    </div> -->
+
   </div>
+
+  <script src="js/upload.js"></script>
 </body>
-<script src="js/upload.js"></script>
 
 </html>
