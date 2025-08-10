@@ -27,7 +27,7 @@ const folderPath = 'BackupDataGame/';
 module.exports = {
     uploadFile: async (filename, makePublic = false) => {
         try {
-            const localPath = path.join(__dirname, '../public/upload_game', filename);
+            const localPath = path.join(__dirname, '../upload_game', filename);
             await bucket.upload(localPath, {
                 destination: folderPath + filename,
                 gzip: true,

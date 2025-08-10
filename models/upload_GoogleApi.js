@@ -20,7 +20,7 @@ const drive = google.drive({
 
 module.exports = {
     uploadFile: async (filename) => {
-        const zipFilePath = `public/upload_game/${filename}`;
+        const zipFilePath = `upload_game/${filename}`;
 
         try {
             // Set file metadata with parents property
@@ -94,11 +94,11 @@ module.exports = {
                             .on('end', () => {
                                 console.log('Tệp được tải xuống thành công');
                                 // Đường dẫn đến tệp zip
-                                // const zipPath = `public/upload_game/${filename}`;
+                                // const zipPath = `upload_game/${filename}`;
                                 // const zipPath = destinationPath;
                                 // console.log("zipPath: ", zipPath);
                                 // // // Đường dẫn đến thư mục mà bạn muốn giải nén tệp zip vào
-                                // const extractToPath = `public/upload_game/${name}`;
+                                // const extractToPath = `upload_game/${name}`;
                                 // console.log("extractToPath: ", extractToPath);
 
                                 // // Giải nén tệp zip

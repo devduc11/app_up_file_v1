@@ -36,7 +36,7 @@ const fixedTokenAdmin = "123456"; // admin
 
 // ====================== UPLOAD CONFIG ======================
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'public/upload_game/'),
+    destination: (req, file, cb) => cb(null, 'upload_game/'),
     filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage });
@@ -61,19 +61,19 @@ app.get('/', (req, res) => {
 });
 
 // Upload file game
-app.post('/public/upload_game', upload.single('file'), async (req, res) => {
+app.post('/upload_game', upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).send('Không có tệp nào được tải lên.');
 
     try {
         const existingFile = await File.findOne({ name: req.body.name, type: req.body.type });
-        const zipPath = path.join('public/upload_game', req.file.filename);
-        const extractToPath = path.join('public/upload_game', req.body.name);
+        const zipPath = path.join('upload_game', req.file.filename);
+        const extractToPath = path.join('upload_game', req.body.name);
 
         if (existingFile) {
             // Xóa bản cũ trên cloud & local
             await backup_Data_Game.deleteFile(existingFile.filename);
-            fs.existsSync(path.join('public/upload_game', existingFile.filename)) && fs.unlinkSync(path.join('public/upload_game', existingFile.filename));
-            fs.existsSync(path.join('public/upload_game', existingFile.name)) && fs.rmSync(path.join('public/upload_game', existingFile.name), { recursive: true });
+            fs.existsSync(path.join('upload_game', existingFile.filename)) && fs.unlinkSync(path.join('upload_game', existingFile.filename));
+            fs.existsSync(path.join('upload_game', existingFile.name)) && fs.rmSync(path.join('upload_game', existingFile.name), { recursive: true });
 
             // Cập nhật DB
             existingFile.filename = req.file.filename;
@@ -133,8 +133,8 @@ app.get('/testGame', async (req, res) => {
         if (!game) return res.status(404).send('Không tìm thấy trò chơi.');
 
         const { name, filename } = game;
-        const zipPath = `public/upload_game/${filename}`;
-        const extractToPath = `public/upload_game/${name}`;
+        const zipPath = `upload_game/${filename}`;
+        const extractToPath = `upload_game/${name}`;
 
         new AdmZip(zipPath).extractAllTo(extractToPath, true);
         res.redirect(`/upload_game/${name}/`);
@@ -160,8 +160,8 @@ app.delete('/games', async (req, res) => {
 
         // Xóa trên cloud & local
         await backup_Data_Game.deleteFile(filename);
-        fs.existsSync(`public/upload_game/${filename}`) && fs.unlinkSync(`public/upload_game/${filename}`);
-        fs.existsSync(`public/upload_game/${name}`) && fs.rmSync(`public/upload_game/${name}`, { recursive: true });
+        fs.existsSync(`upload_game/${filename}`) && fs.unlinkSync(`upload_game/${filename}`);
+        fs.existsSync(`upload_game/${name}`) && fs.rmSync(`upload_game/${name}`, { recursive: true });
 
         res.json({ message: 'Xóa thành công', deletedGame });
     } catch (error) {
@@ -173,7 +173,7 @@ app.delete('/games', async (req, res) => {
 // ====================== HÀM CHECK & DOWNLOAD CLOUD FILE ======================
 async function checkAndDownloadFiles() {
     console.log('Đang tải file từ cloud...');
-    const uploadDir = 'public/upload_game/';
+    const uploadDir = 'upload_game/';
     try {
         const filesToDownload = await File.find({ filename: { $exists: true, $ne: null } });
         for (const file of filesToDownload) {
