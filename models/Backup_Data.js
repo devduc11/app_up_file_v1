@@ -1,80 +1,58 @@
-const { initializeApp } = require('firebase/app');
-const { getAnalytics } = require('firebase/analytics');
-const { getStorage } = require('firebase/storage');
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyBktX-GbKBt79Ja94QQpDR1A_fkjbfuxME",
-    authDomain: "server-game-app-up-file.firebaseapp.com",
-    projectId: "server-game-app-up-file",
-    storageBucket: "server-game-app-up-file.appspot.com",
-    messagingSenderId: "563214407654",
-    appId: "1:563214407654:web:684c233934f9ec87642827",
-    measurementId: "G-16SQ6RV0XT"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-let analytics = null;
-if (typeof window !== 'undefined') {
-    analytics = getAnalytics(app);
-}
-
-const fs = require('fs');
+const path = require('path');
 const admin = require('firebase-admin');
 
-// Khởi tạo Firebase Admin với tệp sao lưu cấu hình của Firebase
-const serviceAccount = require('./models/server-game-app-up-file-firebase.json');
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    storageBucket: 'gs://server-game-app-up-file.appspot.com'// server-game-app-up-file-firebase-adminsdk-5pkvx-8c9d6dc959.json
-});
+// Đảm bảo chỉ init 1 lần
+if (!admin.apps.length) {
+    const serviceAccount = require('./models/server-game-app-up-file-firebase.json');
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: `${serviceAccount.project_id}.appspot.com`
+    });
+}
 
-const bucketName = 'gs://server-game-app-up-file.appspot.com'; // Đường dẫn bucket mới
-const folderPath = 'BackupDataGame/'; // Đường dẫn đến thư mục trong Firebase Storage
+const bucket = admin.storage().bucket();
+const folderPath = 'BackupDataGame/';
 
 module.exports = {
-    uploadFile: async (filename) => {
-        const zipFilePath = `public/upload_game/${filename}`;
-        const fileContent = fs.readFileSync(zipFilePath);
-        const storage = admin.storage();
-        const bucket = storage.bucket(bucketName);
-        const file = bucket.file(folderPath + filename); // Thêm tên thư mục vào đường dẫn
+    uploadFile: async (filename, makePublic = false) => {
+        try {
+            const localPath = path.join(__dirname, '../public/upload_game', filename);
+            await bucket.upload(localPath, {
+                destination: folderPath + filename,
+                gzip: true,
+                metadata: { contentType: 'application/zip' }
+            });
 
-        file.save(fileContent, {
-            gzip: true,
-            metadata: {
-                contentType: 'application/zip' // Đặt contentType cho tệp zip
-            },
-            public: true // Có thể public cho mọi người xem hay không
-        }).then(() => {
-            console.log(`${filename} uploaded successfully.`);
-        }).catch(err => {
+            if (makePublic) {
+                await bucket.file(folderPath + filename).makePublic();
+                console.log(`${filename} uploaded and made public.`);
+            } else {
+                console.log(`${filename} uploaded successfully.`);
+            }
+        } catch (err) {
             console.error('Error uploading file:', err);
-        });
+        }
     },
+
     deleteFile: async (filename) => {
-        const storage = admin.storage();
-        const bucket = storage.bucket(bucketName);
-        const file = bucket.file(folderPath + filename); // Thêm tên thư mục vào đường dẫn
-
-        file.delete().then(() => {
+        try {
+            await bucket.file(folderPath + filename).delete();
             console.log(`${filename} deleted successfully.`);
-        }).catch(err => {
+        } catch (err) {
             console.error('Error deleting file:', err);
-        });
+        }
     },
-    downloadFile: async (filename, destination) => {
-        const storage = admin.storage();
-        const bucket = storage.bucket(bucketName);
-        const file = bucket.file(folderPath + filename); // Thêm tên thư mục vào đường dẫn
 
-        file.download({
-            destination: destination
-        }).then(() => {
+    downloadFile: async (filename, destination) => {
+        try {
+            await bucket.file(folderPath + filename).download({ destination });
             console.log(`${filename} downloaded successfully to ${destination}.`);
-        }).catch(err => {
+        } catch (err) {
             console.error('Error downloading file:', err);
-        });
+        }
+    },
+
+    getPublicUrl: (filename) => {
+        return `https://storage.googleapis.com/${bucket.name}/${folderPath}${filename}`;
     }
-}
+};
