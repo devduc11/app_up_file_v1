@@ -205,5 +205,10 @@ async function checkAndDownloadFiles() {
     }
 }
 
+// ====================== PING CHECK ======================
+app.get("/ping", (req, res) => {
+    res.json({ status: "ok", message: "Server is running" });
+});
+
 // ====================== START SERVER ======================
 app.listen(port, () => console.log(`Server running on port ${port}`));
