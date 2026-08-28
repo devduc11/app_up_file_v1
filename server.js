@@ -13,7 +13,13 @@ const path = require('path');
 const multer = require('multer');
 const mongoose = require('mongoose');
 const File = require('./models/File');
-const backup_Data_Game = require('./models/Backup_Data');
+// const backup_Data_Game = require('./models/Backup_Data'); // bỏ comment để có thể backup data
+const backup_Data_Game = {
+    uploadFile: async () => console.log('[Backup Mock] Skip upload to Firebase Cloud'),
+    deleteFile: async () => console.log('[Backup Mock] Skip delete from Firebase Cloud'),
+    downloadFile: async () => console.log('[Backup Mock] Skip download from Firebase Cloud'),
+    getPublicUrl: (filename) => ''
+};
 const cors = require('cors');
 const fs = require('fs');
 const extract = require('extract-zip');
@@ -196,7 +202,7 @@ app.delete('/games', async (req, res) => {
 
 // ====================== HÀM CHECK & DOWNLOAD CLOUD FILE ======================
 async function checkAndDownloadFiles() {
-    console.log('Đang tải file từ cloud...');
+    console.log('Đang kiểm tra dữ liệu local...');
     try {
         const filesToDownload = await File.find({ filename: { $exists: true, $ne: null } });
         for (const file of filesToDownload) {
@@ -204,11 +210,13 @@ async function checkAndDownloadFiles() {
             const extractPath = path.join(uploadDir, file.name);
 
             await backup_Data_Game.downloadFile(file.filename, destinationPath);
-            await extract(destinationPath, { dir: path.resolve(extractPath) });
+            if (fs.existsSync(destinationPath) && !fs.existsSync(extractPath)) {
+                await extract(destinationPath, { dir: path.resolve(extractPath) });
+            }
         }
-        console.log('Hoàn tất tải và giải nén.');
+        console.log('Hoàn tất kiểm tra dữ liệu.');
     } catch (err) {
-        console.error('Lỗi khi tải file:', err);
+        console.error('Lỗi khi kiểm tra file:', err);
     }
 }
 
