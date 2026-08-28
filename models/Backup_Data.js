@@ -1,11 +1,12 @@
 const path = require('path');
 const admin = require('firebase-admin');
+const { getStorage } = require('firebase-admin/storage');
 require('dotenv').config(); // Load biến môi trường từ .env
 
 // Chỉ init Firebase Admin 1 lần
-if (!admin.apps.length) {
+if (!admin.getApps().length) {
     admin.initializeApp({
-        credential: admin.credential.cert({
+        credential: admin.cert({
             type: process.env.FIREBASE_TYPE,
             project_id: process.env.FIREBASE_PROJECT_ID,
             private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
@@ -21,7 +22,7 @@ if (!admin.apps.length) {
     });
 }
 
-const bucket = admin.storage().bucket();
+const bucket = getStorage().bucket();
 const folderPath = 'BackupDataGame/';
 
 module.exports = {

@@ -1,3 +1,10 @@
+const buffer = require('buffer');
+if (!buffer.SlowBuffer) buffer.SlowBuffer = buffer.Buffer;
+if (!global.SlowBuffer) global.SlowBuffer = buffer.Buffer;
+
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
