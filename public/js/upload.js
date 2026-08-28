@@ -17,6 +17,10 @@ var app = new Vue({
     searchQuery: "",
     file: null,
     fileName: "",
+    showPlayableModal: false,
+    playableFormat: "single-html",
+    playableInfo: null,
+    isCheckingPlayable: false,
   },
   computed: {
     // a computed getter
@@ -233,6 +237,39 @@ var app = new Vue({
       } catch (error) {
         console.log(error.message);
       }
+    },
+    async openPlayableModal() {
+      if (!this.isCanTest) return;
+      this.showPlayableModal = true;
+      this.checkPlayableInfo();
+    },
+    async checkPlayableInfo() {
+      if (!this.isCanTest) return;
+      const selectedGame = this.gamesList[this.selected];
+      this.isCheckingPlayable = true;
+      this.playableInfo = null;
+      try {
+        const response = await fetch(
+          `/export-playable-info?id=${selectedGame._id}&format=${this.playableFormat}`
+        );
+        const data = await response.json();
+        if (response.ok) {
+          this.playableInfo = data;
+        } else {
+          alert(data.error || "Lỗi khi kiểm tra thông tin Playable Ad.");
+        }
+      } catch (error) {
+        console.error(error);
+        alert("Có lỗi xảy ra khi tính toán dung lượng Playable Ad.");
+      } finally {
+        this.isCheckingPlayable = false;
+      }
+    },
+    downloadPlayableAd() {
+      if (!this.isCanTest) return;
+      const selectedGame = this.gamesList[this.selected];
+      const downloadUrl = `/export-playable?id=${selectedGame._id}&format=${this.playableFormat}`;
+      window.open(downloadUrl, "_blank");
     },
     handleFileUpload() {
       const selectedFile = this.$refs.file.files[0];

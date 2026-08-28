@@ -415,8 +415,49 @@
             <button v-if="isCanTest" v-on:click="testGame" class="btn btn-primary">
               🎯 Test Game
             </button>
+            <button v-if="isCanTest" v-on:click="openPlayableModal" class="btn btn-success">
+              🎬 Xuất Playable Ad
+            </button>
             <button v-if="isCanDelete" v-on:click="deleteGame" class="btn btn-danger">
               🗑️ Xóa Game
+            </button>
+          </div>
+        </div>
+
+        <!-- Playable Ad Modal / Options -->
+        <div v-if="showPlayableModal" class="card">
+          <h2 class="section-title">🎬 Xuất bản Playable Ad (Giới hạn 2MB - 5MB)</h2>
+          <p class="text-secondary">Chọn định dạng xuất bản dành cho mạng quảng cáo (IronSource, AppLovin, Google, Facebook,...):</p>
+          
+          <div class="mb-3">
+            <label class="form-label">Định dạng Playable Ad</label>
+            <select v-model="playableFormat" @change="checkPlayableInfo" class="form-control">
+              <option value="single-html">Single-File HTML (Gộp toàn bộ CSS/JS/Assets vào 1 file index.html)</option>
+              <option value="zip">ZIP Bundle Ad (Gói ZIP tối ưu cho Google / FB Ads)</option>
+            </select>
+          </div>
+
+          <div v-if="playableInfo" class="p-3 mb-3 rounded" style="background: var(--background-secondary); border: 1px solid var(--border-color);">
+            <p class="mb-1"><strong>Tên tệp xuất:</strong> {{ playableInfo.filename }}</p>
+            <p class="mb-1"><strong>Dung lượng:</strong> <span :style="{ color: playableInfo.isWithinLimit5MB ? '#10b981' : '#ef4444', fontWeight: 'bold' }">{{ playableInfo.sizeMB }} MB</span></p>
+            <p class="mb-1">
+              <strong>Chuẩn 2MB:</strong> 
+              <span v-if="playableInfo.isWithinLimit2MB" class="badge bg-success">✅ Đạt chuẩn (<= 2MB)</span>
+              <span v-else class="badge bg-warning text-dark">⚠️ Vượt 2MB</span>
+            </p>
+            <p class="mb-0">
+              <strong>Chuẩn 5MB:</strong> 
+              <span v-if="playableInfo.isWithinLimit5MB" class="badge bg-success">✅ Đạt chuẩn (<= 5MB)</span>
+              <span v-else class="badge bg-danger">❌ Vượt quá 5MB</span>
+            </p>
+          </div>
+
+          <div class="d-flex gap-2 mt-3">
+            <button v-on:click="downloadPlayableAd" class="btn btn-success" :disabled="isCheckingPlayable">
+              📥 Tải xuống Playable Ad
+            </button>
+            <button v-on:click="showPlayableModal = false" class="btn btn-secondary" style="background: var(--border-color); color: white;">
+              Đóng
             </button>
           </div>
         </div>

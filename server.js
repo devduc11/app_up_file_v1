@@ -13,6 +13,7 @@ const path = require('path');
 const multer = require('multer');
 const mongoose = require('mongoose');
 const File = require('./models/File');
+const playableExporter = require('./models/playable_exporter');
 // const backup_Data_Game = require('./models/Backup_Data'); // bỏ comment để có thể backup data
 const backup_Data_Game = {
     uploadFile: async () => console.log('[Backup Mock] Skip upload to Firebase Cloud'),
@@ -197,6 +198,67 @@ app.delete('/games', async (req, res) => {
     } catch (error) {
         console.error('Lỗi xóa game:', error);
         res.status(500).send('Lỗi khi xóa trò chơi.');
+    }
+});
+
+// ====================== XUẤT BẢN PLAYABLE AD ======================
+// Route kiểm tra thông tin và dung lượng Playable Ad
+app.get('/export-playable-info', async (req, res) => {
+    const { id, format } = req.query;
+    try {
+        const game = await File.findOne({ _id: id }).exec();
+        if (!game) return res.status(404).json({ error: 'Không tìm thấy trò chơi.' });
+
+        const gameDir = path.join(uploadDir, game.name);
+        const zipPath = path.join(uploadDir, game.filename);
+
+        if (!fs.existsSync(gameDir) && fs.existsSync(zipPath)) {
+            await extract(zipPath, { dir: path.resolve(gameDir) });
+        }
+
+        const playableOutputDir = path.join(__dirname, 'playable_output');
+        const exportResult = await playableExporter.exportPlayableAd(gameDir, format || 'single-html', playableOutputDir);
+
+        res.json({
+            name: game.name,
+            filename: exportResult.filename,
+            sizeMB: exportResult.sizeMB,
+            sizeBytes: exportResult.sizeBytes,
+            isWithinLimit2MB: exportResult.isWithinLimit2MB,
+            isWithinLimit5MB: exportResult.isWithinLimit5MB,
+            format: exportResult.format
+        });
+    } catch (error) {
+        console.error('Lỗi kiểm tra Playable Ad:', error);
+        res.status(500).json({ error: error.message || 'Lỗi khi tính toán dung lượng Playable Ad.' });
+    }
+});
+
+// Route tải xuống tệp Playable Ad
+app.get('/export-playable', async (req, res) => {
+    const { id, format } = req.query;
+    try {
+        const game = await File.findOne({ _id: id }).exec();
+        if (!game) return res.status(404).send('Không tìm thấy trò chơi.');
+
+        const gameDir = path.join(uploadDir, game.name);
+        const zipPath = path.join(uploadDir, game.filename);
+
+        if (!fs.existsSync(gameDir) && fs.existsSync(zipPath)) {
+            await extract(zipPath, { dir: path.resolve(gameDir) });
+        }
+
+        const playableOutputDir = path.join(__dirname, 'playable_output');
+        const exportResult = await playableExporter.exportPlayableAd(gameDir, format || 'single-html', playableOutputDir);
+
+        res.download(exportResult.filePath, exportResult.filename, (err) => {
+            if (err) {
+                console.error('Lỗi khi gửi file Playable Ad:', err);
+            }
+        });
+    } catch (error) {
+        console.error('Lỗi xuất Playable Ad:', error);
+        res.status(500).send(error.message || 'Lỗi khi đóng gói Playable Ad.');
     }
 });
 
