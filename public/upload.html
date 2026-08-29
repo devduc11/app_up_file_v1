@@ -437,23 +437,33 @@
             </select>
           </div>
 
-          <div v-if="playableInfo" class="p-3 mb-3 rounded" style="background: var(--background-secondary); border: 1px solid var(--border-color);">
+          <div v-if="isCheckingPlayable" class="text-center p-4 mb-3 rounded" style="background: var(--background-secondary); border: 1px solid var(--border-color);">
+            <div class="spinner-border text-primary" role="status" style="width: 2.5rem; height: 2.5rem;">
+              <span class="visually-hidden">Đang tính toán...</span>
+            </div>
+            <p class="mt-3 mb-0 text-secondary fw-semibold">⚡ Đang áp dụng thuật toán nén và tính toán dung lượng Playable Ad...</p>
+          </div>
+
+          <div v-else-if="playableInfo" class="p-3 mb-3 rounded" style="background: var(--background-secondary); border: 1px solid var(--border-color);">
             <p class="mb-1"><strong>Tên tệp xuất:</strong> {{ playableInfo.filename }}</p>
-            <p class="mb-1"><strong>Dung lượng:</strong> <span :style="{ color: playableInfo.isWithinLimit5MB ? '#10b981' : '#ef4444', fontWeight: 'bold' }">{{ playableInfo.sizeMB }} MB</span></p>
+            <p class="mb-1"><strong>Dung lượng:</strong> <span :style="{ color: playableInfo.isWithinLimit5MB ? '#10b981' : '#ef4444', fontWeight: 'bold', fontSize: '1.05rem' }">{{ playableInfo.sizeMB }} MB</span></p>
             <p class="mb-1">
               <strong>Chuẩn 2MB:</strong> 
               <span v-if="playableInfo.isWithinLimit2MB" class="badge bg-success">✅ Đạt chuẩn (<= 2MB)</span>
               <span v-else class="badge bg-warning text-dark">⚠️ Vượt 2MB</span>
             </p>
-            <p class="mb-0">
+            <p class="mb-2">
               <strong>Chuẩn 5MB:</strong> 
               <span v-if="playableInfo.isWithinLimit5MB" class="badge bg-success">✅ Đạt chuẩn (<= 5MB)</span>
               <span v-else class="badge bg-danger">❌ Vượt quá 5MB</span>
             </p>
+            <div v-if="!playableInfo.isWithinLimit5MB" class="alert alert-warning py-2 px-3 mt-2 mb-0" style="font-size: 0.85rem;">
+              <strong>💡 Gợi ý tối ưu:</strong> Với game dung lượng lớn (như Unity), hãy cấu hình trong Unity Editor: <em>Managed Stripping = High</em>, <em>Code Generation = Smaller</em>, <em>Enable Exceptions = None</em>, hoặc xuất định dạng <strong>ZIP Bundle Ad</strong>.
+            </div>
           </div>
 
           <div class="d-flex gap-2 mt-3">
-            <button v-on:click="downloadPlayableAd" class="btn btn-success" :disabled="isCheckingPlayable">
+            <button v-on:click="downloadPlayableAd" class="btn btn-success" :disabled="isCheckingPlayable || !playableInfo">
               📥 Tải xuống Playable Ad
             </button>
             <button v-on:click="showPlayableModal = false" class="btn btn-secondary" style="background: var(--border-color); color: white;">

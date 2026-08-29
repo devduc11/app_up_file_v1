@@ -67,11 +67,9 @@ function fileToBase64(filePath) {
 }
 
 /**
- * Đóng gói tối ưu hóa riêng cho Unity WebGL (Gzip Compression Level 9 + Browser DecompressionStream + Blob URLs)
+ * Đóng gói tối ưu hóa riêng cho Unity WebGL (Gzip Level 9 + Browser DecompressionStream + Blob URLs)
  */
 async function bundleUnityPlayableGzip(gameDir) {
-    const files = fs.readdirSync(gameDir);
-
     let buildDir = path.join(gameDir, 'Build');
     if (!fs.existsSync(buildDir)) {
         buildDir = gameDir;
@@ -79,35 +77,38 @@ async function bundleUnityPlayableGzip(gameDir) {
 
     const buildFiles = fs.readdirSync(buildDir);
 
-    let dataFile = buildFiles.find(f => f.endsWith('.data'));
-    let wasmFile = buildFiles.find(f => f.endsWith('.wasm'));
+    let dataFile      = buildFiles.find(f => f.endsWith('.data') || f.endsWith('.data.unityweb'));
+    let wasmFile      = buildFiles.find(f => f.endsWith('.wasm') || f.endsWith('.wasm.unityweb'));
     let frameworkFile = buildFiles.find(f => f.includes('framework') && f.endsWith('.js'));
-    let loaderFile = buildFiles.find(f => f.includes('loader') && f.endsWith('.js'));
+    let loaderFile    = buildFiles.find(f => f.includes('loader') && f.endsWith('.js'));
 
     if (!dataFile || !wasmFile || !frameworkFile || !loaderFile) {
         throw new Error('Thiếu cấu trúc file build Unity WebGL (.data, .wasm, .framework.js, .loader.js)!');
     }
 
-    const dataB64Gz = compressToBase64Gzip(path.join(buildDir, dataFile));
-    const wasmB64Gz = compressToBase64Gzip(path.join(buildDir, wasmFile));
+    console.log('[Playable Exporter] Gzip Level 9 nén dữ liệu Unity...');
+    const dataB64Gz      = compressToBase64Gzip(path.join(buildDir, dataFile));
+    const wasmB64Gz      = compressToBase64Gzip(path.join(buildDir, wasmFile));
     const frameworkB64Gz = compressToBase64Gzip(path.join(buildDir, frameworkFile));
-    
-    // Đọc loaderCode giữ nguyên cấu trúc gốc của Unity (không dùng regex minify gây hỏng cú pháp JS)
-    const loaderCode = fs.readFileSync(path.join(buildDir, loaderFile), 'utf8');
+    const loaderCode     = fs.readFileSync(path.join(buildDir, loaderFile), 'utf8');
+
+    const safeLoader = loaderCode.replace(/<\/script/gi, '<\\/script');
 
     const templateHtml = `<!DOCTYPE html>
 <html lang="en-us">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity WebGL Playable Ad (Gzip Optimized)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Unity WebGL Playable Ad</title>
     <style>
-      html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #000; font-family: Helvetica, Arial, sans-serif; }
+      html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
       #unity-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
       #unity-canvas { width: 100% !important; height: 100% !important; display: block; }
-      #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #231f20; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999; transition: opacity 0.5s ease; }
-      .spinner { border: 4px solid rgba(255, 255, 255, 0.1); width: 50px; height: 50px; border-radius: 50%; border-left-color: #fff; animation: spin 1s linear infinite; }
+      #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a1a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999; transition: opacity 0.4s ease; }
+      .spinner { border: 4px solid rgba(255, 255, 255, 0.15); width: 44px; height: 44px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 0.9s linear infinite; }
       @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      #load-progress { color: #e5e7eb; margin-top: 14px; font-size: 14px; font-weight: 500; }
     </style>
   </head>
   <body>
@@ -115,127 +116,124 @@ async function bundleUnityPlayableGzip(gameDir) {
       <canvas id="unity-canvas" tabindex="-1"></canvas>
       <div id="loading-overlay">
         <div class="spinner"></div>
-        <p style="color: white; margin-top: 15px; font-size: 14px;">Loading Playable Ad...</p>
+        <p id="load-progress">Đang chuẩn bị Playable Ad...</p>
       </div>
     </div>
 
+    <!-- Unity Loader Code -->
     <script>
-      //__UNITY_LOADER_CODE__
+      ${safeLoader}
     </script>
 
     <script>
-      // Thuật toán Lookup Table giải mã Base64 cực nhanh, giải phóng bộ nhớ RAM
+      // Fast Base64 Lookup Table Decoder
       function b64ToUint8Array(b64) {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-        const lookup = new Uint8Array(256);
-        for (let i = 0; i < chars.length; i++) {
-          lookup[chars.charCodeAt(i)] = i;
+        var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+        var lut = new Uint8Array(256);
+        for (var i = 0; i < chars.length; i++) lut[chars.charCodeAt(i)] = i;
+        var bLen = b64.length * 0.75, len = b64.length, p = 0;
+        if (b64[len - 1] === '=') { bLen--; if (b64[len - 2] === '=') bLen--; }
+        var ab = new ArrayBuffer(bLen), bytes = new Uint8Array(ab);
+        for (var i = 0; i < len; i += 4) {
+          var e1 = lut[b64.charCodeAt(i)], e2 = lut[b64.charCodeAt(i + 1)],
+              e3 = lut[b64.charCodeAt(i + 2)], e4 = lut[b64.charCodeAt(i + 3)];
+          bytes[p++] = (e1 << 2) | (e2 >> 4);
+          bytes[p++] = ((e2 & 15) << 4) | (e3 >> 2);
+          bytes[p++] = ((e3 & 3) << 6) | (e4 & 63);
         }
-
-        let bufferLength = b64.length * 0.75,
-            len = b64.length, i, p = 0,
-            encoded1, encoded2, encoded3, encoded4;
-
-        if (b64[b64.length - 1] === "=") {
-          bufferLength--;
-          if (b64[b64.length - 2] === "=") {
-            bufferLength--;
-          }
-        }
-
-        const arrayBuffer = new ArrayBuffer(bufferLength),
-              bytes = new Uint8Array(arrayBuffer);
-
-        for (i = 0; i < len; i += 4) {
-          encoded1 = lookup[b64.charCodeAt(i)];
-          encoded2 = lookup[b64.charCodeAt(i + 1)];
-          encoded3 = lookup[b64.charCodeAt(i + 2)];
-          encoded4 = lookup[b64.charCodeAt(i + 3)];
-
-          bytes[p++] = (encoded1 << 2) | (encoded2 >> 4);
-          bytes[p++] = ((encoded2 & 15) << 4) | (encoded3 >> 2);
-          bytes[p++] = ((encoded3 & 3) << 6) | (encoded4 & 63);
-        }
-
         return bytes;
       }
 
+      // Native Browser Gzip Decompressor -> Blob URL
       async function decompressBlobUrl(b64Data, contentType) {
-        const compressedUint8 = b64ToUint8Array(b64Data);
-        const stream = new ReadableStream({
-          start(controller) {
+        var compressedUint8 = b64ToUint8Array(b64Data);
+        var stream = new ReadableStream({
+          start: function(controller) {
             controller.enqueue(compressedUint8);
             controller.close();
           }
         });
-        const decompressionStream = new DecompressionStream('gzip');
-        const decompressedStream = stream.pipeThrough(decompressionStream);
-        
-        const response = new Response(decompressedStream);
-        const blob = await response.blob();
-        const finalBlob = new Blob([blob], { type: contentType });
-        return URL.createObjectURL(finalBlob);
+        var ds = new DecompressionStream('gzip');
+        var decompressedStream = stream.pipeThrough(ds);
+        var response = new Response(decompressedStream);
+        var blob = await response.blob();
+        return URL.createObjectURL(new Blob([blob], { type: contentType }));
       }
 
+      var progressEl = document.getElementById('load-progress');
+
       async function initPlayable() {
-        console.log("⚙️ Decompressing Core Unity Assets safely...");
+        console.log('[Playable] Decompressing Unity Assets via native DecompressionStream...');
         try {
-          const [dataUrl, wasmUrl, frameworkUrl] = await Promise.all([
-            decompressBlobUrl("__UNITY_DATA_B64_GZ__", "application/octet-stream"),
-            decompressBlobUrl("__UNITY_WASM_B64_GZ__", "application/wasm"),
-            decompressBlobUrl("__UNITY_FRAMEWORK_B64_GZ__", "application/javascript")
+          if (progressEl) progressEl.textContent = 'Đang giải nén tài nguyên...';
+
+          var results = await Promise.all([
+            decompressBlobUrl('__UNITY_DATA_B64_GZ__', 'application/octet-stream'),
+            decompressBlobUrl('__UNITY_WASM_B64_GZ__', 'application/wasm'),
+            decompressBlobUrl('__UNITY_FRAMEWORK_B64_GZ__', 'application/javascript')
           ]);
 
-          const canvas = document.querySelector("#unity-canvas");
-          const loadingOverlay = document.querySelector("#loading-overlay");
+          var dataUrl      = results[0];
+          var wasmUrl      = results[1];
+          var frameworkUrl = results[2];
 
-          const config = {
+          var canvas = document.querySelector('#unity-canvas');
+          var loadingOverlay = document.querySelector('#loading-overlay');
+
+          var config = {
             dataUrl: dataUrl,
-            frameworkUrl: frameworkUrl, 
+            frameworkUrl: frameworkUrl,
             codeUrl: wasmUrl,
-            streamingAssetsUrl: "StreamingAssets",
-            companyName: "DefaultCompany",
-            productName: "PlayableAd",
-            productVersion: "1.0",
+            streamingAssetsUrl: 'StreamingAssets',
+            companyName: 'DefaultCompany',
+            productName: 'PlayableAd',
+            productVersion: '1.0'
           };
 
-          const script = document.createElement("script");
+          var script = document.createElement('script');
           script.src = frameworkUrl;
-          
-          script.onload = () => {
+          script.onload = function() {
             if (typeof createUnityInstance === 'function') {
-              createUnityInstance(canvas, config, (progress) => {})
-                .then((unityInstance) => {
-                  console.log("🚀 Unity Loaded Successfully!");
-                  loadingOverlay.style.opacity = 0;
-                  setTimeout(() => loadingOverlay.style.display = "none", 500);
-                })
-                .catch((err) => { alert("Unity Launch Error: " + err); });
+              createUnityInstance(canvas, config, function(progress) {
+                if (progressEl) progressEl.textContent = 'Đang tải trò chơi: ' + Math.round(progress * 100) + '%';
+              })
+              .then(function(unityInstance) {
+                console.log('[Playable] 🚀 Unity Loaded Successfully!');
+                if (loadingOverlay) {
+                  loadingOverlay.style.opacity = '0';
+                  setTimeout(function() { loadingOverlay.style.display = 'none'; }, 400);
+                }
+              })
+              .catch(function(err) {
+                console.error('[Playable] Unity launch error:', err);
+                alert('Unity Error: ' + err);
+              });
             } else {
-              console.error("createUnityInstance is not defined after framework script load");
+              console.error('[Playable] createUnityInstance not defined after framework load');
             }
           };
           document.body.appendChild(script);
 
         } catch (error) {
-          console.error("❌ Lỗi giải nén data:", error);
+          console.error('[Playable] ❌ Decompression error:', error);
+          if (progressEl) progressEl.textContent = 'Lỗi giải nén: ' + error.message;
         }
       }
 
       // === PLAYABLE AD CTA HANDLER ===
       window.openAppStore = function(customUrl) {
-          console.log('[Playable Ad] CTA Clicked');
-          if (window.mraid && typeof mraid.open === 'function') {
-              mraid.open(customUrl || '');
-          } else if (window.FbPlayableAd && typeof FbPlayableAd.onCTAClick === 'function') {
-              FbPlayableAd.onCTAClick();
-          } else if (window.ExitApi && typeof ExitApi.exit === 'function') {
-              ExitApi.exit();
-          } else if (customUrl) {
-              window.open(customUrl, '_blank');
-          } else {
-              alert('CTA Clicked! (MRAID / AppStore Link trigger)');
-          }
+        console.log('[Playable Ad] CTA Clicked');
+        if (window.mraid && typeof mraid.open === 'function') {
+          mraid.open(customUrl || '');
+        } else if (window.FbPlayableAd && typeof FbPlayableAd.onCTAClick === 'function') {
+          FbPlayableAd.onCTAClick();
+        } else if (window.ExitApi && typeof ExitApi.exit === 'function') {
+          ExitApi.exit();
+        } else if (customUrl) {
+          window.open(customUrl, '_blank');
+        } else {
+          alert('CTA Clicked! (MRAID / AppStore Link trigger)');
+        }
       };
 
       initPlayable();
@@ -243,8 +241,7 @@ async function bundleUnityPlayableGzip(gameDir) {
   </body>
 </html>`;
 
-    let outputContent = templateHtml
-        .split('//__UNITY_LOADER_CODE__').join(loaderCode)
+    const outputContent = templateHtml
         .split('__UNITY_DATA_B64_GZ__').join(dataB64Gz)
         .split('__UNITY_WASM_B64_GZ__').join(wasmB64Gz)
         .split('__UNITY_FRAMEWORK_B64_GZ__').join(frameworkB64Gz);
@@ -280,10 +277,8 @@ async function bundleGeneralPlayableHtml(gameDir) {
 
     let htmlContent = fs.readFileSync(indexFile.fullPath, 'utf8');
 
-    // --- Tìm & gzip static scripts theo đúng thứ tự trong HTML ---
+    // 1. Phân loại tài nguyên
     const staticScriptPaths = new Set();
-    const staticScriptQueue = []; // [{name, gz}] — thứ tự quan trọng!
-
     const scriptTagRegex = /<script[^>]+src=["']([^"']+)["'][^>]*>\s*<\/script>/gi;
     let sm;
     while ((sm = scriptTagRegex.exec(htmlContent)) !== null) {
@@ -293,30 +288,23 @@ async function bundleGeneralPlayableHtml(gameDir) {
             f.relativePath.endsWith('/' + src) ||
             src.endsWith(f.relativePath)
         );
-        if (jsFile && !staticScriptPaths.has(jsFile.relativePath)) {
+        if (jsFile) {
             staticScriptPaths.add(jsFile.relativePath);
-            console.log(`[Playable Exporter] Gzip compressing static script: ${jsFile.relativePath}`);
-            staticScriptQueue.push({
-                name: jsFile.relativePath,
-                gz: compressToBase64Gzip(jsFile.fullPath)
-            });
         }
     }
 
-    // Extensions đã nén sẵn — gzip không cải thiện thêm
-    const BINARY_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp3', '.ogg',
-                                   '.wav', '.ico', '.woff', '.woff2', '.ttf', '.data', '.unityweb', '.mem', '.wasm']);
-    // Extensions text-based — compress rất tốt với gzip
     const COMPRESSIBLE_EXTS = new Set(['.json', '.svg', '.xml', '.atlas', '.plist']);
 
-    const assetsMap = {};     // PNG/JPG/Audio/Font: base64 data URI (không gzip)
+    const assetsMap = {};     // PNG/JPG/Audio/Font: base64 data URI
     const assetsGzMap = {};   // JSON/SVG/XML: gzip+base64
-    const jsGzMap = {};       // Dynamic JS (không static): gzip+base64
+    const jsGzMap = {};       // Dynamic JS (không static inline): gzip+base64
 
     filteredFiles.forEach(file => {
         const ext = path.extname(file.fullPath).toLowerCase();
         if (ext === '.html' || ext === '.css') return;
-        if (staticScriptPaths.has(file.relativePath)) return; // Đã trong staticScriptQueue
+
+        // Nếu là script tĩnh có sẵn trong index.html -> sẽ được inline trực tiếp
+        if (staticScriptPaths.has(file.relativePath)) return;
 
         if (ext === '.js') {
             jsGzMap[file.relativePath] = compressToBase64Gzip(file.fullPath);
@@ -327,7 +315,7 @@ async function bundleGeneralPlayableHtml(gameDir) {
         }
     });
 
-    // --- Inline CSS & icon links ---
+    // 2. Inline CSS & icon links
     htmlContent = htmlContent.replace(/<link[^>]+rel=["'](?:stylesheet|icon|apple-touch-icon|shortcut icon)["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi, (match, href) => {
         const cleanHref = href.split('?')[0];
         const cssFile = filteredFiles.find(f => f.relativePath === cleanHref || f.relativePath.endsWith(cleanHref));
@@ -351,11 +339,22 @@ async function bundleGeneralPlayableHtml(gameDir) {
         return match;
     });
 
-    // --- Xóa static <script src="..."> tags — pre-init sẽ load chúng ---
-    htmlContent = htmlContent.replace(/<script[^>]+src=["']([^"']+)["'][^>]*>\s*<\/script>/gi, '');
+    // 3. Inline các static <script src="..."> trực tiếp vào đúng vị trí để giữ nguyên thứ tự thực thi đồng bộ
+    htmlContent = htmlContent.replace(/<script[^>]+src=["']([^"']+)["'][^>]*>\s*<\/script>/gi, (match, src) => {
+        const cleanSrc = src.split('?')[0];
+        const jsFile = filteredFiles.find(f =>
+            f.relativePath === cleanSrc ||
+            f.relativePath.endsWith('/' + cleanSrc) ||
+            cleanSrc.endsWith(f.relativePath)
+        );
+        if (jsFile) {
+            let jsContent = fs.readFileSync(jsFile.fullPath, 'utf8');
+            return `<script>\n${jsContent}\n</script>`;
+        }
+        return match;
+    });
 
-    // --- Build injection script ---
-    const safeStaticQueue  = JSON.stringify(staticScriptQueue).replace(/<\/script/gi, '<\\/script');
+    // 4. Build injection script (Runtime interceptors)
     const safeAssetsJson   = JSON.stringify(assetsMap).replace(/<\/script/gi, '<\\/script');
     const safeAssetsGzJson = JSON.stringify(assetsGzMap).replace(/<\/script/gi, '<\\/script');
     const safeJsGzJson     = JSON.stringify(jsGzMap).replace(/<\/script/gi, '<\\/script');
@@ -366,44 +365,30 @@ async function bundleGeneralPlayableHtml(gameDir) {
 window.__PLAYABLE_ASSETS__    = ${safeAssetsJson};
 window.__PLAYABLE_ASSETS_GZ__ = ${safeAssetsGzJson};
 window.__PLAYABLE_JS_GZ__     = ${safeJsGzJson};
-window.__STATIC_JS_QUEUE__    = ${safeStaticQueue};
 
 // --- Gzip Decompressor dùng Browser DecompressionStream API ---
 async function __decompressGz__(b64gz) {
-    const bytes = Uint8Array.from(atob(b64gz), c => c.charCodeAt(0));
-    const ds = new DecompressionStream('gzip');
-    const writer = ds.writable.getWriter();
+    var bytes = Uint8Array.from(atob(b64gz), function(c) { return c.charCodeAt(0); });
+    var ds = new DecompressionStream('gzip');
+    var writer = ds.writable.getWriter();
     writer.write(bytes);
     writer.close();
-    const reader = ds.readable.getReader();
-    const chunks = [];
+    var reader = ds.readable.getReader();
+    var chunks = [];
     while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
+        var res = await reader.read();
+        if (res.done) break;
+        chunks.push(res.value);
     }
-    const total = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
-    let off = 0;
-    for (const c of chunks) { total.set(c, off); off += c.length; }
+    var totalLen = chunks.reduce(function(acc, chunk) { return acc + chunk.length; }, 0);
+    var total = new Uint8Array(totalLen);
+    var offset = 0;
+    for (var i = 0; i < chunks.length; i++) {
+        total.set(chunks[i], offset);
+        offset += chunks[i].length;
+    }
     return new TextDecoder().decode(total);
 }
-
-// --- Pre-init: Ẩn trang, giải nén & eval static scripts theo thứ tự ---
-document.documentElement.style.visibility = 'hidden';
-window.__playableInitPromise__ = (async function () {
-    console.log('[Playable] Pre-init: decompressing ' + window.__STATIC_JS_QUEUE__.length + ' scripts...');
-    for (const item of window.__STATIC_JS_QUEUE__) {
-        try {
-            const code = await __decompressGz__(item.gz);
-            (0, eval)(code);
-            console.log('[Playable] ✅ Loaded: ' + item.name);
-        } catch (e) {
-            console.error('[Playable] ❌ Error loading ' + item.name, e);
-        }
-    }
-    document.documentElement.style.visibility = '';
-    console.log('[Playable] 🚀 Game Ready!');
-})();
 
 // --- Runtime Interceptors (XHR, fetch, Image, Audio, Script) ---
 (function () {
