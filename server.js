@@ -42,8 +42,13 @@ mongoose.connect(process.env.MONGODB_URI)
     .then(() => {
         console.log("Mongo connected successfully");
         checkAndDownloadFiles();
+        // ====================== START SERVER ======================
+        app.listen(port, () => console.log(`Server running on port ${port}`));
     })
-    .catch((error) => console.error("Mongo error:", error));
+    .catch((error) => {
+        console.error("Mongo error:", error);
+        process.exit(1); // Dừng hẳn nếu không kết nối được DB
+    });
 
 // ====================== MIDDLEWARE ======================
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -287,5 +292,3 @@ app.get("/ping", (req, res) => {
     res.json({ status: "ok", message: "Server is running" });
 });
 
-// ====================== START SERVER ======================
-app.listen(port, () => console.log(`Server running on port ${port}`));

@@ -253,44 +253,91 @@ async function bundleUnityPlayableGzip(gameDir) {
 }
 
 /**
- * Đóng gói game thành Single-File HTML cho Cocos Creator & HTML5 Games
+ * Đóng gói tối ưu game thành Single-File HTML cho Cocos Creator & HTML5 Games
+ * Dùng Gzip Level 9 cho JS/JSON + Browser DecompressionStream API để giải nén runtime
  */
 async function bundleGeneralPlayableHtml(gameDir) {
     const allFiles = getAllFiles(gameDir);
 
-    let indexFile = allFiles.find(f => f.relativePath === 'index.html');
-    if (!indexFile) {
-        indexFile = allFiles.find(f => f.relativePath.endsWith('.html'));
-    }
+    // Bỏ qua các file không cần thiết cho production playable ad
+    const SKIP_EXTENSIONS = new Set(['.map', '.md', '.txt', '.DS_Store', '.gitignore', '.npmignore', '.log', '.bat', '.sh']);
+    const filteredFiles = allFiles.filter(f => {
+        const ext = path.extname(f.fullPath).toLowerCase();
+        const base = path.basename(f.fullPath);
+        if (SKIP_EXTENSIONS.has(ext)) return false;
+        if (base === '.DS_Store' || base === 'Thumbs.db') return false;
+        if (f.relativePath.startsWith('__MACOSX/')) return false;
+        return true;
+    });
 
+    let indexFile = filteredFiles.find(f => f.relativePath === 'index.html');
+    if (!indexFile) {
+        indexFile = filteredFiles.find(f => f.relativePath.endsWith('.html'));
+    }
     if (!indexFile) {
         throw new Error('Không tìm thấy file HTML chính (index.html) trong thư mục game.');
     }
 
     let htmlContent = fs.readFileSync(indexFile.fullPath, 'utf8');
 
-    const assetsMap = {};
-    const jsMap = {};
+    // --- Tìm & gzip static scripts theo đúng thứ tự trong HTML ---
+    const staticScriptPaths = new Set();
+    const staticScriptQueue = []; // [{name, gz}] — thứ tự quan trọng!
 
-    allFiles.forEach(file => {
+    const scriptTagRegex = /<script[^>]+src=["']([^"']+)["'][^>]*>\s*<\/script>/gi;
+    let sm;
+    while ((sm = scriptTagRegex.exec(htmlContent)) !== null) {
+        const src = sm[1].split('?')[0];
+        const jsFile = filteredFiles.find(f =>
+            f.relativePath === src ||
+            f.relativePath.endsWith('/' + src) ||
+            src.endsWith(f.relativePath)
+        );
+        if (jsFile && !staticScriptPaths.has(jsFile.relativePath)) {
+            staticScriptPaths.add(jsFile.relativePath);
+            console.log(`[Playable Exporter] Gzip compressing static script: ${jsFile.relativePath}`);
+            staticScriptQueue.push({
+                name: jsFile.relativePath,
+                gz: compressToBase64Gzip(jsFile.fullPath)
+            });
+        }
+    }
+
+    // Extensions đã nén sẵn — gzip không cải thiện thêm
+    const BINARY_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp3', '.ogg',
+                                   '.wav', '.ico', '.woff', '.woff2', '.ttf', '.data', '.unityweb', '.mem', '.wasm']);
+    // Extensions text-based — compress rất tốt với gzip
+    const COMPRESSIBLE_EXTS = new Set(['.json', '.svg', '.xml', '.atlas', '.plist']);
+
+    const assetsMap = {};     // PNG/JPG/Audio/Font: base64 data URI (không gzip)
+    const assetsGzMap = {};   // JSON/SVG/XML: gzip+base64
+    const jsGzMap = {};       // Dynamic JS (không static): gzip+base64
+
+    filteredFiles.forEach(file => {
         const ext = path.extname(file.fullPath).toLowerCase();
+        if (ext === '.html' || ext === '.css') return;
+        if (staticScriptPaths.has(file.relativePath)) return; // Đã trong staticScriptQueue
+
         if (ext === '.js') {
-            jsMap[file.relativePath] = fs.readFileSync(file.fullPath, 'utf8');
-        } else if (ext !== '.html' && ext !== '.css') {
+            jsGzMap[file.relativePath] = compressToBase64Gzip(file.fullPath);
+        } else if (COMPRESSIBLE_EXTS.has(ext)) {
+            assetsGzMap[file.relativePath] = compressToBase64Gzip(file.fullPath);
+        } else {
             assetsMap[file.relativePath] = fileToBase64(file.fullPath);
         }
     });
 
+    // --- Inline CSS & icon links ---
     htmlContent = htmlContent.replace(/<link[^>]+rel=["'](?:stylesheet|icon|apple-touch-icon|shortcut icon)["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi, (match, href) => {
         const cleanHref = href.split('?')[0];
-        const cssFile = allFiles.find(f => f.relativePath === cleanHref || f.relativePath.endsWith(cleanHref));
+        const cssFile = filteredFiles.find(f => f.relativePath === cleanHref || f.relativePath.endsWith(cleanHref));
         if (cssFile) {
             const ext = path.extname(cssFile.fullPath).toLowerCase();
             if (ext === '.css') {
                 let cssContent = fs.readFileSync(cssFile.fullPath, 'utf8');
-                cssContent = cssContent.replace(/url\((['"]?)([^'")]+)\1\)/gi, (m, quote, urlPath) => {
+                cssContent = cssContent.replace(/url\((['"]?)([^'")(]+)\1\)/gi, (m, quote, urlPath) => {
                     const cleanUrl = urlPath.split('?')[0];
-                    const asset = allFiles.find(f => f.relativePath === cleanUrl || f.relativePath.endsWith(cleanUrl));
+                    const asset = filteredFiles.find(f => f.relativePath === cleanUrl || f.relativePath.endsWith(cleanUrl));
                     if (asset) {
                         return `url("${fileToBase64(asset.fullPath)}")`;
                     }
@@ -304,28 +351,65 @@ async function bundleGeneralPlayableHtml(gameDir) {
         return match;
     });
 
-    htmlContent = htmlContent.replace(/<script[^>]+src=["']([^"']+)["'][^>]*>\s*<\/script>/gi, (match, src) => {
-        const cleanSrc = src.split('?')[0];
-        const jsFile = allFiles.find(f => f.relativePath === cleanSrc || f.relativePath.endsWith(cleanSrc));
-        if (jsFile) {
-            let jsContent = fs.readFileSync(jsFile.fullPath, 'utf8');
-            return `<script>\n${jsContent}\n</script>`;
-        }
-        return match;
-    });
+    // --- Xóa static <script src="..."> tags — pre-init sẽ load chúng ---
+    htmlContent = htmlContent.replace(/<script[^>]+src=["']([^"']+)["'][^>]*>\s*<\/script>/gi, '');
 
-    const safeAssetsJson = JSON.stringify(assetsMap).replace(/<\/script/gi, '<\\/script');
-    const safeJsJson = JSON.stringify(jsMap).replace(/<\/script/gi, '<\\/script');
+    // --- Build injection script ---
+    const safeStaticQueue  = JSON.stringify(staticScriptQueue).replace(/<\/script/gi, '<\\/script');
+    const safeAssetsJson   = JSON.stringify(assetsMap).replace(/<\/script/gi, '<\\/script');
+    const safeAssetsGzJson = JSON.stringify(assetsGzMap).replace(/<\/script/gi, '<\\/script');
+    const safeJsGzJson     = JSON.stringify(jsGzMap).replace(/<\/script/gi, '<\\/script');
 
     const injectScript = `
 <script>
-window.__PLAYABLE_ASSETS__ = ${safeAssetsJson};
-window.__PLAYABLE_JS__ = ${safeJsJson};
+// ======== PLAYABLE AD RUNTIME — Gzip Optimized ========
+window.__PLAYABLE_ASSETS__    = ${safeAssetsJson};
+window.__PLAYABLE_ASSETS_GZ__ = ${safeAssetsGzJson};
+window.__PLAYABLE_JS_GZ__     = ${safeJsGzJson};
+window.__STATIC_JS_QUEUE__    = ${safeStaticQueue};
 
-(function() {
+// --- Gzip Decompressor dùng Browser DecompressionStream API ---
+async function __decompressGz__(b64gz) {
+    const bytes = Uint8Array.from(atob(b64gz), c => c.charCodeAt(0));
+    const ds = new DecompressionStream('gzip');
+    const writer = ds.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    const reader = ds.readable.getReader();
+    const chunks = [];
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+    }
+    const total = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
+    let off = 0;
+    for (const c of chunks) { total.set(c, off); off += c.length; }
+    return new TextDecoder().decode(total);
+}
+
+// --- Pre-init: Ẩn trang, giải nén & eval static scripts theo thứ tự ---
+document.documentElement.style.visibility = 'hidden';
+window.__playableInitPromise__ = (async function () {
+    console.log('[Playable] Pre-init: decompressing ' + window.__STATIC_JS_QUEUE__.length + ' scripts...');
+    for (const item of window.__STATIC_JS_QUEUE__) {
+        try {
+            const code = await __decompressGz__(item.gz);
+            (0, eval)(code);
+            console.log('[Playable] ✅ Loaded: ' + item.name);
+        } catch (e) {
+            console.error('[Playable] ❌ Error loading ' + item.name, e);
+        }
+    }
+    document.documentElement.style.visibility = '';
+    console.log('[Playable] 🚀 Game Ready!');
+})();
+
+// --- Runtime Interceptors (XHR, fetch, Image, Audio, Script) ---
+(function () {
     function getCleanPath(url) {
         if (!url || typeof url !== 'string') return '';
-        return url.replace(/^\\.\\//, '').replace(/^\\//, '').split('?')[0];
+        return url.replace(/^\\.\\//,'').replace(/^\\//,'').split('?')[0];
     }
 
     function b64ToUint8Array(b64) {
@@ -333,9 +417,7 @@ window.__PLAYABLE_JS__ = ${safeJsJson};
         var str = atob(parts[1] || parts[0]);
         var len = str.length;
         var bytes = new Uint8Array(len);
-        for (var i = 0; i < len; i++) {
-            bytes[i] = str.charCodeAt(i);
-        }
+        for (var i = 0; i < len; i++) { bytes[i] = str.charCodeAt(i); }
         return bytes;
     }
 
@@ -350,43 +432,40 @@ window.__PLAYABLE_JS__ = ${safeJsJson};
         var cleanUrl = getCleanPath(url);
         if (window.__PLAYABLE_ASSETS__[cleanUrl]) return window.__PLAYABLE_ASSETS__[cleanUrl];
         if (window.__PLAYABLE_ASSETS__[url]) return window.__PLAYABLE_ASSETS__[url];
-        if (window.__PLAYABLE_JS__[cleanUrl]) {
-            try {
-                return 'data:application/javascript;base64,' + btoa(unescape(encodeURIComponent(window.__PLAYABLE_JS__[cleanUrl])));
-            } catch(e) {}
-        }
         return url;
     }
 
+    function getGzData(url) {
+        var cleanUrl = getCleanPath(url);
+        return (window.__PLAYABLE_ASSETS_GZ__[cleanUrl] || window.__PLAYABLE_ASSETS_GZ__[url] ||
+                window.__PLAYABLE_JS_GZ__[cleanUrl]     || window.__PLAYABLE_JS_GZ__[url]) || null;
+    }
+
+    function isGzJs(url) {
+        var cleanUrl = getCleanPath(url);
+        return !!(window.__PLAYABLE_JS_GZ__[cleanUrl] || window.__PLAYABLE_JS_GZ__[url]);
+    }
+
+    // Script createElement interceptor — hỗ trợ dynamic gzip JS
     var origCreateElement = document.createElement;
-    document.createElement = function(tagName) {
+    document.createElement = function (tagName) {
         var elem = origCreateElement.call(document, tagName);
         if (tagName && tagName.toLowerCase() === 'script') {
             var srcVal = '';
             Object.defineProperty(elem, 'src', {
-                get: function() { return srcVal; },
-                set: function(val) {
+                get: function () { return srcVal; },
+                set: function (val) {
                     srcVal = val;
-                    var jsCode = null;
-                    var cleanUrl = getCleanPath(val);
-
-                    if (val.startsWith('data:application/javascript;base64,')) {
-                        jsCode = b64ToText(val);
-                    } else {
-                        jsCode = window.__PLAYABLE_JS__[cleanUrl] || window.__PLAYABLE_JS__[val];
-                    }
-
-                    if (jsCode) {
-                        try {
-                            (0, eval)(jsCode);
-                        } catch(e) {
-                            console.error('[Playable Script Loader] Eval error:', e);
-                        }
-
-                        setTimeout(function() {
-                            if (typeof elem.onload === 'function') elem.onload();
-                            elem.dispatchEvent(new Event('load'));
-                        }, 0);
+                    var gz = getGzData(val);
+                    if (gz) {
+                        __decompressGz__(gz).then(function (jsCode) {
+                            try { (0, eval)(jsCode); } catch (e) { console.error('[Playable] Script eval error:', e); }
+                            setTimeout(function () {
+                                if (typeof elem.onload === 'function') elem.onload();
+                                elem.dispatchEvent(new Event('load'));
+                            }, 0);
+                        });
+                        return;
                     }
                 }
             });
@@ -394,85 +473,114 @@ window.__PLAYABLE_JS__ = ${safeJsJson};
         return elem;
     };
 
+    // Image src interceptor
     var origImageSrc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
     if (origImageSrc && origImageSrc.set) {
         Object.defineProperty(HTMLImageElement.prototype, 'src', {
             get: origImageSrc.get,
-            set: function(val) {
-                origImageSrc.set.call(this, getBase64Asset(val));
-            }
+            set: function (val) { origImageSrc.set.call(this, getBase64Asset(val)); }
         });
     }
 
+    // Audio src interceptor
     if (window.HTMLAudioElement) {
         var origAudioSrc = Object.getOwnPropertyDescriptor(HTMLAudioElement.prototype, 'src');
         if (origAudioSrc && origAudioSrc.set) {
             Object.defineProperty(HTMLAudioElement.prototype, 'src', {
                 get: origAudioSrc.get,
-                set: function(val) {
-                    origAudioSrc.set.call(this, getBase64Asset(val));
-                }
+                set: function (val) { origAudioSrc.set.call(this, getBase64Asset(val)); }
             });
         }
     }
 
+    // XHR interceptor — hỗ trợ gzip assets và plain base64
     if (window.XMLHttpRequest) {
         var origXHR = window.XMLHttpRequest;
         function MockXHR() {
             var xhr = new origXHR();
-            var targetUrl = '';
-            var targetB64 = null;
+            var targetUrl  = '';
+            var targetB64  = null;
+            var targetGz   = null;
             var responseTypeVal = '';
 
             var origOpen = xhr.open;
-            xhr.open = function(method, url, async, user, password) {
+            xhr.open = function (method, url, async, user, password) {
                 targetUrl = url;
                 targetB64 = getBase64Asset(url);
                 if (targetB64 && targetB64.startsWith('data:')) {
+                    // plain asset — handle in send
                 } else {
-                    origOpen.apply(this, arguments);
+                    targetGz = getGzData(url);
+                    if (!targetGz) {
+                        origOpen.apply(this, arguments);
+                    }
+                    // gzip asset — handle in send, don't call origOpen
                 }
             };
 
             Object.defineProperty(xhr, 'responseType', {
-                get: function() { return responseTypeVal; },
-                set: function(val) {
-                    responseTypeVal = val;
-                    try { xhr.__resType = val; } catch(e){}
-                }
+                get: function () { return responseTypeVal; },
+                set: function (val) { responseTypeVal = val; try { xhr.__resType = val; } catch (e) {} }
             });
 
             var origSend = xhr.send;
-            xhr.send = function(body) {
+            xhr.send = function (body) {
+                // --- Gzip asset/JS ---
+                if (targetGz) {
+                    var _isJs = isGzJs(targetUrl);
+                    __decompressGz__(targetGz).then(function (text) {
+                        var responseVal;
+                        if (responseTypeVal === 'json') {
+                            try { responseVal = JSON.parse(text); } catch (e) { responseVal = {}; }
+                        } else if (responseTypeVal === 'arraybuffer') {
+                            responseVal = new TextEncoder().encode(text).buffer;
+                        } else if (responseTypeVal === 'blob') {
+                            responseVal = new Blob([text], { type: _isJs ? 'application/javascript' : 'application/json' });
+                        } else {
+                            responseVal = text;
+                        }
+                        Object.defineProperty(xhr, 'readyState',   { value: 4,    writable: true });
+                        Object.defineProperty(xhr, 'status',       { value: 200,  writable: true });
+                        Object.defineProperty(xhr, 'statusText',   { value: 'OK', writable: true });
+                        Object.defineProperty(xhr, 'responseText', { value: (typeof responseVal === 'string' ? responseVal : JSON.stringify(responseVal)), writable: true });
+                        Object.defineProperty(xhr, 'response',     { value: responseVal, writable: true });
+                        if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
+                        if (typeof xhr.onload === 'function') xhr.onload();
+                        xhr.dispatchEvent(new Event('load'));
+                    }).catch(function (e) {
+                        console.error('[Playable XHR] Decompress error:', e);
+                    });
+                    return;
+                }
+
+                // --- Plain base64 asset ---
                 if (targetB64 && targetB64.startsWith('data:')) {
-                    setTimeout(function() {
+                    setTimeout(function () {
                         var mime = targetB64.split(';')[0].replace('data:', '');
                         var bytes = b64ToUint8Array(targetB64);
-                        var responseVal = null;
-
+                        var responseVal;
                         if (responseTypeVal === 'arraybuffer') {
                             responseVal = bytes.buffer;
                         } else if (responseTypeVal === 'json') {
-                            try { responseVal = JSON.parse(b64ToText(targetB64)); } catch(e) { responseVal = {}; }
+                            try { responseVal = JSON.parse(b64ToText(targetB64)); } catch (e) { responseVal = {}; }
                         } else if (responseTypeVal === 'blob') {
                             responseVal = new Blob([bytes], { type: mime });
                         } else {
                             responseVal = b64ToText(targetB64);
                         }
-
-                        Object.defineProperty(xhr, 'readyState', { value: 4, writable: true });
-                        Object.defineProperty(xhr, 'status', { value: 200, writable: true });
-                        Object.defineProperty(xhr, 'statusText', { value: 'OK', writable: true });
+                        Object.defineProperty(xhr, 'readyState',   { value: 4,    writable: true });
+                        Object.defineProperty(xhr, 'status',       { value: 200,  writable: true });
+                        Object.defineProperty(xhr, 'statusText',   { value: 'OK', writable: true });
                         Object.defineProperty(xhr, 'responseText', { value: (typeof responseVal === 'string' ? responseVal : JSON.stringify(responseVal)), writable: true });
-                        Object.defineProperty(xhr, 'response', { value: responseVal, writable: true });
-
+                        Object.defineProperty(xhr, 'response',     { value: responseVal, writable: true });
                         if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
                         if (typeof xhr.onload === 'function') xhr.onload();
                         xhr.dispatchEvent(new Event('load'));
                     }, 0);
-                } else {
-                    origSend.apply(this, arguments);
+                    return;
                 }
+
+                origSend.apply(this, arguments);
             };
 
             return xhr;
@@ -480,41 +588,65 @@ window.__PLAYABLE_JS__ = ${safeJsJson};
         window.XMLHttpRequest = MockXHR;
     }
 
+    // Fetch interceptor — hỗ trợ gzip và plain base64
     if (window.fetch) {
         var origFetch = window.fetch;
-        window.fetch = function(input, init) {
+        window.fetch = function (input, init) {
             var url = (typeof input === 'string') ? input : (input && input.url);
+
+            // Gzip asset/JS
+            var gz = getGzData(url);
+            if (gz) {
+                var _isJs = isGzJs(url);
+                return __decompressGz__(gz).then(function (text) {
+                    var bytes = new TextEncoder().encode(text);
+                    var mime = _isJs ? 'application/javascript' : 'application/json';
+                    return {
+                        ok: true, status: 200, statusText: 'OK',
+                        headers: { get: function (h) {
+                            if (!h) return null; h = h.toLowerCase();
+                            if (h === 'content-type') return mime;
+                            if (h === 'content-length') return String(bytes.length);
+                            return null;
+                        }},
+                        body: null,
+                        text:        function () { return Promise.resolve(text); },
+                        json:        function () { try { return Promise.resolve(JSON.parse(text)); } catch (e) { return Promise.resolve({}); } },
+                        arrayBuffer: function () { return Promise.resolve(bytes.buffer); },
+                        blob:        function () { return Promise.resolve(new Blob([bytes], { type: mime })); }
+                    };
+                });
+            }
+
+            // Plain base64 asset
             var b64 = getBase64Asset(url);
             if (b64 && b64.startsWith('data:')) {
                 var mime = b64.split(';')[0].replace('data:', '');
                 var bytes = b64ToUint8Array(b64);
                 var textStr = b64ToText(b64);
                 return Promise.resolve({
-                    ok: true,
-                    status: 200,
-                    statusText: 'OK',
-                    headers: {
-                        get: function(headerName) {
-                            if (!headerName) return null;
-                            var h = headerName.toLowerCase();
-                            if (h === 'content-length') return String(bytes.length);
-                            if (h === 'content-type') return mime;
-                            return null;
-                        }
-                    },
+                    ok: true, status: 200, statusText: 'OK',
+                    headers: { get: function (h) {
+                        if (!h) return null; h = h.toLowerCase();
+                        if (h === 'content-length') return String(bytes.length);
+                        if (h === 'content-type') return mime;
+                        return null;
+                    }},
                     body: null,
-                    text: function() { return Promise.resolve(textStr); },
-                    json: function() { return Promise.resolve(JSON.parse(textStr)); },
-                    arrayBuffer: function() { return Promise.resolve(bytes.buffer); },
-                    blob: function() { return Promise.resolve(new Blob([bytes], { type: mime })); }
+                    text:        function () { return Promise.resolve(textStr); },
+                    json:        function () { return Promise.resolve(JSON.parse(textStr)); },
+                    arrayBuffer: function () { return Promise.resolve(bytes.buffer); },
+                    blob:        function () { return Promise.resolve(new Blob([bytes], { type: mime })); }
                 });
             }
+
             return origFetch.apply(this, arguments);
         };
     }
 })();
 
-window.openAppStore = function(customUrl) {
+// === PLAYABLE AD CTA HANDLER ===
+window.openAppStore = function (customUrl) {
     console.log('[Playable Ad] CTA Clicked');
     if (window.mraid && typeof mraid.open === 'function') {
         mraid.open(customUrl || '');
@@ -541,9 +673,20 @@ window.openAppStore = function(customUrl) {
 }
 
 /**
- * Đóng gói game thành tệp ZIP cho Ad Networks
+ * Đóng gói game thành tệp ZIP cho Ad Networks (bỏ source maps & non-essential files)
  */
 async function bundleZipAd(gameDir, outputPath) {
+    const SKIP_EXTENSIONS = new Set(['.map', '.md', '.txt', '.DS_Store', '.gitignore', '.npmignore', '.log', '.bat', '.sh']);
+    const allFiles = getAllFiles(gameDir);
+    const filteredFiles = allFiles.filter(f => {
+        const ext = path.extname(f.fullPath).toLowerCase();
+        const base = path.basename(f.fullPath);
+        if (SKIP_EXTENSIONS.has(ext)) return false;
+        if (base === '.DS_Store' || base === 'Thumbs.db') return false;
+        if (f.relativePath.startsWith('__MACOSX/')) return false;
+        return true;
+    });
+
     return new Promise((resolve, reject) => {
         const output = fs.createWriteStream(outputPath);
         const archive = archiver('zip', { zlib: { level: 9 } });
@@ -552,10 +695,13 @@ async function bundleZipAd(gameDir, outputPath) {
         archive.on('error', (err) => reject(err));
 
         archive.pipe(output);
-        archive.directory(gameDir, false);
+        filteredFiles.forEach(file => {
+            archive.file(file.fullPath, { name: file.relativePath });
+        });
         archive.finalize();
     });
 }
+
 
 /**
  * Kiểm tra xem thư mục có phải là Unity WebGL build hay không
